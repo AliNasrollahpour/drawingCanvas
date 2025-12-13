@@ -1,11 +1,414 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ali's Page</title>
+    <title>Pure JS Canvas Drawing & Analysis</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 10px;
+        }
+        .controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        #drawingCanvas {
+            border: 1px solid #ccc;
+        }
+        #resultPre {
+            background: #f5f5f5;
+            padding: 8px;
+            margin-top: 8px;
+        }
+    </style>
 </head>
 <body>
-    <h1>Hello, I’m Ali</h1>
-    <p>My GitHub personal site is working!</p>
+
+    <div class="controls">
+        <select id="penSelect">
+            <option value='closed'>Closed Pen</option>
+            <option value='open'>Open Pen</option>
+        </select>
+        <button id="clearButton">Clear</button>
+        <button id="analyzeButton">Analyze</button>
+    </div>
+    
+    <canvas id="drawingCanvas" width="900" height="600"></canvas>
+    
+    <pre id="resultPre"></pre>
+
+    <script>
+        // --- Configuration Constants ---
+        const W = 900, H = 600;
+        
+        // --- State Variables (Replacing React's useState) ---
+        let pen = 'closed'; // The current drawing mode ('closed' or 'open')
+        let strokes = [];   // Array of completed strokes {points: Array<Point>, type: 'closed'|'open'}
+        let current = null; // The currently active stroke {points: Array<Point>, type: 'closed'|'open'}
+        let result = '';    // The analysis result string
+        
+        // --- DOM Element References (Replacing React's useRef) ---
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        const penSelect = document.getElementById('penSelect');
+        const clearButton = document.getElementById('clearButton');
+        const analyzeButton = document.getElementById('analyzeButton');
+        const resultPre = document.getElementById('resultPre');
+
+        // --- Utility Functions ---
+
+        /** Converts a mouse event to canvas local coordinates. */
+        function toLocal(e) {
+            const r = canvas.getBoundingClientRect();
+            return { x: e.clientX - r.left, y: e.clientY - r.top };
+        }
+
+        /** Checks if the stroke is a loop (endpoint near start point). */
+        function isLoop(pts) {
+            if (pts.length < 6) return false;
+            const a = pts[0], b = pts[pts.length - 1];
+            return Math.hypot(a.x - b.x, a.y - b.y) < 12;
+        }
+        
+        // --- Drawing Functions ---
+
+        /** Draws all completed strokes. (React useEffect equivalent) */
+        function drawAll() {
+            ctx.clearRect(0, 0, W, H);
+            
+            for (const s of strokes) {
+                ctx.beginPath();
+                ctx.lineWidth = 2;
+                ctx.setLineDash([]);
+                ctx.strokeStyle = s.type === 'open' ? 'red' : 'blue';
+                
+                const p0 = s.points[0];
+                ctx.moveTo(p0.x, p0.y);
+                for (let i = 1; i < s.points.length; i++) {
+                    ctx.lineTo(s.points[i].x, s.points[i].y);
+                }
+                
+                // Pure JS equivalent of React's conditional closePath/fill logic
+                ctx.closePath(); 
+                ctx.fillStyle = s.type === 'open' ? 'rgba(255,0,0,0.08)' : 'rgba(0,0,255,0.08)';
+                ctx.fill(); 
+                ctx.stroke();
+            }
+        }
+
+        /** Draws the current stroke in progress (preview). */
+        function drawPreview(s) {
+            drawAll(); // Redraw all completed strokes first
+            
+            ctx.beginPath();
+            ctx.lineWidth = 2;
+            ctx.setLineDash(s.type === 'open' ? [6, 4] : []);
+            ctx.strokeStyle = s.type === 'open' ? 'red' : 'blue';
+            
+            const p0 = s.points[0];
+            ctx.moveTo(p0.x, p0.y);
+            for (let i = 1; i < s.points.length; i++) {
+                ctx.lineTo(s.points[i].x, s.points[i].y);
+            }
+            ctx.stroke();
+        }
+
+        // --- Event Handlers (Replacing React's function props) ---
+
+        /** Mousedown handler: Starts a new stroke. */
+        function start(e) {
+            if (e.button !== 0) return; // Only handle left click
+            const p = toLocal(e);
+            current = { points: [p], type: pen };
+        }
+
+        /** Mousemove handler: Adds points to the current stroke and previews. */
+        function move(e) {
+            if (!current) return;
+            const p = toLocal(e);
+            
+            // This replaces the state update logic: setCurrent(c=>{...})
+            current.points.push(p);
+            drawPreview(current);
+        }
+
+        /** Mouseup/Mouseleave handler: Ends the current stroke. */
+        function end() {
+            if (!current) return;
+            
+            const pts = current.points;
+            const loop = isLoop(pts);
+            
+            if (!loop) {
+                // If it's not a loop, discard the stroke
+                current = null;
+                drawAll(); // Redraw without the incomplete stroke
+                return;
+            }
+            
+            // If it is a loop, commit it to the strokes array (Replaces setStrokes)
+            strokes.push({ points: pts, type: current.type });
+            current = null;
+            drawAll(); // Redraw with the new completed stroke
+        }
+        
+        /** Clears the canvas and state. */
+        function clearCanvas() {
+            strokes = [];
+            current = null;
+            result = '';
+            resultPre.textContent = result;
+            drawAll();
+        }
+
+        /** Renders the analysis overlay. */
+        function renderOverlay(partMasks, boundaries) {
+            drawAll(); // Redraw existing strokes
+            
+            for (let pi = 0; pi < partMasks.length; pi++) {
+                const boundary = boundaries[pi];
+                ctx.beginPath();
+                for (let y = 0; y < H; y++) {
+                    for (let x = 0; x < W; x++) {
+                        if (boundary[y * W + x]) {
+                            ctx.rect(x, y, 1, 1);
+                        }
+                    }
+                }
+                ctx.fillStyle = 'rgba(0,255,0,0.12)';
+                ctx.fill();
+                ctx.strokeStyle = 'green';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+
+        // --- Analysis Functions (Unchanged core logic) ---
+
+        function cross(o, a, b) { return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x); }
+        
+        function convexHull(points) {
+            if (points.length < 3) return points.slice();
+            points.sort((a, b) => a.x === b.x ? a.y - b.y : a.x - b.x);
+            
+            const lower = [];
+            for (const p of points) {
+                while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+                lower.push(p);
+            }
+            
+            const upper = [];
+            for (let i = points.length - 1; i >= 0; i--) {
+                const p = points[i];
+                while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+                upper.push(p);
+            }
+            
+            upper.pop();
+            lower.pop();
+            return lower.concat(upper);
+        }
+        
+        function diameterFromHull(hull) {
+            if (hull.length < 2) return 0;
+            let best = 0;
+            for (let i = 0; i < hull.length; i++) {
+                for (let j = i + 1; j < hull.length; j++) {
+                    const d = Math.hypot(hull[i].x - hull[j].x, hull[i].y - hull[j].y);
+                    if (d > best) best = d;
+                }
+            }
+            return best;
+        }
+
+        function analyze() {
+            if (strokes.length === 0) {
+                result = 'Nothing to analyze';
+                resultPre.textContent = result;
+                return;
+            }
+
+            // Create an off-screen canvas for rendering masks
+            const off = document.createElement('canvas');
+            off.width = W;
+            off.height = H;
+            const octx = off.getContext('2d');
+            
+            const masks = [];
+            for (let i = 0; i < strokes.length; i++) {
+                const s = strokes[i];
+                octx.clearRect(0, 0, W, H);
+                octx.beginPath();
+                const p0 = s.points[0];
+                octx.moveTo(p0.x, p0.y);
+                for (let k = 1; k < s.points.length; k++) octx.lineTo(s.points[k].x, s.points[k].y);
+                octx.closePath();
+                octx.fillStyle = 'white';
+                octx.fill();
+                
+                const data = octx.getImageData(0, 0, W, H).data;
+                const mask = new Uint8Array(W * H);
+                for (let y = 0; y < H; y++) {
+                    for (let x = 0; x < W; x++) {
+                        mask[y * W + x] = data[(y * W + x) * 4 + 3] > 0 ? 1 : 0;
+                    }
+                }
+                masks.push(mask);
+            }
+
+            // --- Overlap Adjacency Check ---
+            const adj = new Array(strokes.length).fill(0).map(() => []);
+            for (let i = 0; i < strokes.length; i++) {
+                for (let j = i + 1; j < strokes.length; j++) {
+                    let overlap = false;
+                    const mi = masks[i], mj = masks[j];
+                    for (let k = 0; k < W * H; k++) {
+                        if (mi[k] && mj[k]) {
+                            overlap = true;
+                            break;
+                        }
+                    }
+                    if (overlap) {
+                        adj[i].push(j);
+                        adj[j].push(i);
+                    }
+                }
+            }
+
+            // --- Connected Components (Parts) ---
+            const parts = [];
+            const seen = new Array(strokes.length).fill(false);
+            for (let i = 0; i < strokes.length; i++) {
+                if (!seen[i]) {
+                    const q = [i];
+                    seen[i] = true;
+                    const part = [];
+                    while (q.length) {
+                        const u = q.pop();
+                        part.push(u);
+                        for (const v of adj[u]) {
+                            if (!seen[v]) {
+                                seen[v] = true;
+                                q.push(v);
+                            }
+                        }
+                    }
+                    parts.push(part);
+                }
+            }
+
+            // --- Part Masks and Boundary Detection ---
+            const partMasks = [];
+            for (const part of parts) {
+                const pm = new Uint8Array(W * H);
+                for (const idx of part) {
+                    const m = masks[idx];
+                    for (let k = 0; k < W * H; k++) if (m[k]) pm[k] = 1;
+                }
+                partMasks.push(pm);
+            }
+
+            const partResults = [];
+            const boundaries = [];
+            for (let pi = 0; pi < partMasks.length; pi++) {
+                const pm = partMasks[pi];
+                const boundary = new Uint8Array(W * H);
+                
+                // Boundary detection logic
+                for (let y = 0; y < H; y++) {
+                    for (let x = 0; x < W; x++) {
+                        const i = y * W + x;
+                        if (!pm[i]) continue;
+                        const nb = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+                        for (const [dx, dy] of nb) {
+                            const nx = x + dx, ny = y + dy;
+                            if (nx < 0 || nx >= W || ny < 0 || ny >= H) {
+                                boundary[i] = 1;
+                                break;
+                            }
+                            const ni = ny * W + nx;
+                            if (!pm[ni]) {
+                                boundary[i] = 1;
+                                break;
+                            }
+                        }
+                    }
+                }
+                boundaries.push(boundary);
+
+                // Part type classification
+                const typesSeen = new Set();
+                for (const sIdx of parts[pi]) {
+                    const sm = masks[sIdx];
+                    let touches = false;
+                    for (let k = 0; k < W * H; k++) {
+                        if (sm[k] && boundary[k]) {
+                            touches = true;
+                            break;
+                        }
+                    }
+                    if (touches) typesSeen.add(strokes[sIdx].type);
+                }
+                let partType = 'neither';
+                if (typesSeen.size === 1) partType = typesSeen.has('open') ? 'open' : 'closed';
+                partResults.push(partType);
+            }
+
+            // --- Final Set Classification ---
+            const unique = Array.from(new Set(partResults));
+            let setType = 'neither';
+            if (unique.length === 1) setType = unique[0];
+
+            // --- Convex Hull and Diameter ---
+            let unionPixels = [];
+            for (const pm of partMasks) {
+                for (let k = 0; k < W * H; k++) {
+                    if (pm[k]) unionPixels.push({ x: k % W, y: Math.floor(k / W) });
+                }
+            }
+            
+            if (unionPixels.length === 0) {
+                result = 'No filled area detected';
+                resultPre.textContent = result;
+                return;
+            }
+
+            const hull = convexHull(unionPixels);
+            const diam = diameterFromHull(hull).toFixed(2);
+
+            // --- Update Result ---
+            result = `Parts: ${parts.length}\nSet: ${setType}\nDiameter(px): ${diam}`;
+            resultPre.textContent = result;
+            
+            // Render the analysis overlay
+            renderOverlay(partMasks, boundaries);
+        }
+
+        // --- Initialization and Event Listeners ---
+
+        function initialize() {
+            // Initial draw
+            drawAll(); 
+
+            // Control event listeners
+            penSelect.addEventListener('change', (e) => {
+                pen = e.target.value;
+            });
+            clearButton.addEventListener('click', clearCanvas);
+            analyzeButton.addEventListener('click', analyze);
+
+            // Canvas event listeners
+            canvas.addEventListener('mousedown', start);
+            // Use pointer events for potentially better touch support, though original used mouse
+            canvas.addEventListener('mousemove', move); 
+            canvas.addEventListener('mouseup', end);
+            canvas.addEventListener('mouseleave', end);
+        }
+
+        // Start the application
+        initialize();
+    </script>
+
 </body>
 </html>
