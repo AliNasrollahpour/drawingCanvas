@@ -2,25 +2,158 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Robust Set Theory Analysis</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; display: flex; flex-direction: column; align-items: center; background: #f0f2f5; }
-        .toolbar {
-            background: white; padding: 10px 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 15px; width: 900px;
+        /* BASE & TYPOGRAPHY */
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 10px; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            background: #f8f9fa; /* Light, clean background */
+            min-height: 100vh;
+            margin: 0;
         }
-        .group { display: flex; gap: 5px; border-right: 1px solid #ddd; padding-right: 12px; align-items: center; }
-        .group:last-child { border-right: none; }
-        button { cursor: pointer; padding: 6px 12px; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; font-size: 14px; }
-        button:hover { background: #e0e0e0; }
-        button.active { background: #007bff; color: white; border-color: #0069d9; }
-        select, input[type="text"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
-        #mainSvg { background: white; border: 1px solid #999; box-shadow: 0 4px 6px rgba(0,0,0,0.05); cursor: crosshair; user-select: none; }
-        #analysisPanel { width: 900px; margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
-        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .card h3 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 8px; font-size: 16px; color: #444; }
-        pre { font-family: monospace; font-size: 13px; white-space: pre-wrap; color: #333; margin: 0; }
-        .math-notation { font-family: 'Times New Roman', serif; font-style: italic; font-weight: bold; }
+
+        /* TOOLBAR - Responsive Flex Layout */
+        .toolbar {
+            background: white; 
+            padding: 10px 15px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); /* Deeper shadow for elevation */
+            display: flex; 
+            gap: 15px; 
+            align-items: center; 
+            flex-wrap: wrap; 
+            margin-bottom: 20px; 
+            width: 100%;
+            max-width: 1300px;
+        }
+        .group { 
+            display: flex; 
+            gap: 8px; 
+            border-right: 1px solid #e9ecef; /* Subtle divider */
+            padding-right: 15px; 
+            align-items: center; 
+        }
+        .group:last-child { 
+            border-right: none; 
+            padding-right: 0; 
+        }
+        label {
+            font-size: 0.9rem;
+            color: #495057;
+            font-weight: 600;
+        }
+
+        /* BUTTONS */
+        button { 
+            cursor: pointer; 
+            padding: 8px 15px; 
+            border: 1px solid #adb5bd; 
+            background: #e9ecef; 
+            border-radius: 6px; 
+            font-size: 0.9rem; 
+            transition: all 0.2s ease;
+        }
+        button:hover { 
+            background: #dee2e6; 
+            border-color: #ced4da; 
+        }
+        button.active { 
+            background: #007bff; 
+            color: white; 
+            border-color: #0069d9; 
+            box-shadow: 0 2px 4px rgba(0,123,255,0.3);
+        }
+        select, input[type="text"] { 
+            padding: 8px; 
+            border: 1px solid #ced4da; 
+            border-radius: 6px; 
+            font-size: 0.9rem;
+            background: #fff;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+        }
+        #setNameInput { width: 80px !important; }
+
+        /* SVG CANVAS - Dynamic Size */
+        #mainSvg { 
+            background: white; 
+            border: 1px solid #ced4da; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08); 
+            cursor: crosshair; 
+            user-select: none; 
+            width: 100%; /* Make SVG width 100% of its container */
+            max-width: 1300px; /* Constrain max size */
+            height: auto; /* Height will be managed by viewBox/aspect ratio */
+            border-radius: 8px;
+        }
+
+        /* ANALYSIS PANEL - Responsive Grid */
+        #analysisPanel { 
+            width: 100%; 
+            max-width: 1300px;
+            margin-top: 20px; 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* Responsive grid columns */
+            gap: 20px; 
+        }
+        .card { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
+            border-left: 5px solid #007bff; /* Highlight border */
+            min-height: 250px;
+        }
+        .card h3 { 
+            margin-top: 0; 
+            border-bottom: 2px solid #e9ecef; 
+            padding-bottom: 10px; 
+            font-size: 1.1rem; 
+            color: #343a40; 
+        }
+        pre { 
+            font-family: 'Fira Code', 'Lucida Console', monospace; 
+            font-size: 0.85rem; 
+            white-space: pre-wrap; 
+            color: #212529; 
+            margin: 0; 
+            line-height: 1.4;
+        }
+        .math-notation { 
+            font-family: 'Times New Roman', serif; 
+            font-style: italic; 
+            font-weight: bold; 
+        }
+
+        /* Responsive Adjustments */
+        @media (max-width: 768px) {
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 10px;
+            }
+            .group {
+                border-right: none;
+                padding-right: 0;
+                border-bottom: 1px solid #e9ecef;
+                padding-bottom: 10px;
+                margin-bottom: 5px;
+                flex-wrap: wrap;
+            }
+            .group:last-child {
+                border-bottom: none;
+            }
+            .group button, .group select, .group input {
+                flex-grow: 1; /* Allow controls to fill space */
+            }
+            #analysisPanel {
+                gap: 15px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -46,7 +179,9 @@
         <div class="group">
             <button onclick="undo()">↶ Undo</button>
             <button onclick="redo()">↷ Redo</button>
-            <button onclick="clearAll()" style="color:red">Clear</button>
+        </div>
+        <div class="group">
+            <button onclick="clearAll()" style="color:red">Clear All</button>
         </div>
         <div class="group">
             <button onclick="analyze()">⚡ Analyze</button>
@@ -54,7 +189,7 @@
         </div>
     </div>
 
-    <svg id="mainSvg" width="900" height="600" xmlns="http://www.w3.org/2000/svg">
+    <svg id="mainSvg" viewBox="0 0 1280 720" width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
         <defs>
             <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
                 <path d="M0,0 L10,5 L0,10" style="fill: #666;" />
@@ -83,7 +218,8 @@
 
     <script>
         // --- CONSTANTS & CONFIG ---
-        const W = 900, H = 600;
+        // W and H define the internal coordinate system, now fixed by viewBox="0 0 1280 720"
+        const W = 1280, H = 720; 
         const CONFIG = {
             fillColors: { 'A': 'rgba(255, 0, 0, 0.1)', 'B': 'rgba(0, 0, 255, 0.1)', 'C': 'rgba(0, 128, 0, 0.1)' },
             strokeColors: { 'A': 'red', 'B': 'blue', 'C': 'green' }
@@ -108,7 +244,7 @@
         };
 
 
-        // --- STATE & UTILS (minimal changes, mostly unchanged) ---
+        // --- STATE & UTILS ---
         let state = {
             sets: {
                 'A': { id: 'A', name: 'A', paths: [] }, 
@@ -211,7 +347,7 @@
             });
         }
         
-        // ... (Interaction, History, UI boilerplate functions unchanged) ...
+        // --- INTERACTION & HISTORY ---
         function getLoc(e) {
             const pt = svg.createSVGPoint();
             pt.x = e.clientX; pt.y = e.clientY;
@@ -322,9 +458,8 @@
             inputName.value = s.name;
             selectSet.value = s.id;
         }
-        // End of boilerplate
 
-        // --- Core Functions ---
+        // --- Core Functions (No Change in Logic) ---
 
         function isPointNearBoundary(px, py, boundaryMask, width, distance) {
             for (let dy = -distance; dy <= distance; dy++) {
@@ -340,7 +475,7 @@
             return false;
         }
         
-        // Helper function for diameter calculation
+        // Helper function for diameter calculation (Convex Hull + Rotating Calipers)
         function calculateDiameter(mask, width, height) {
             const pts = [];
             for (let y = 0; y < height; y++) {
@@ -551,7 +686,7 @@
                 }
             }
             
-            // Calculate Diameter (NEW)
+            // Calculate Diameter 
             const diameter = calculateDiameter(unionMask, width, height);
 
             // Boundary Overlay (unchanged)
@@ -577,7 +712,7 @@
                 setType: finalSetType, 
                 unionMask: unionMask, 
                 boundaryMask: boundaryMask, 
-                diameter: diameter // **UPDATED PROPERTY**
+                diameter: diameter 
             };
         }
 
@@ -653,7 +788,7 @@
                 
                 results[set.id] = res;
 
-                // Set Properties Output (Diameter instead of Area)
+                // Set Properties Output
                 const setTypeLabel = res.setType === 'open' ? 'Open' : (res.setType === 'closed' ? 'Closed' : 'Neither');
                 geoText += `### ${set.name}\n`;
                 geoText += `* **Type:** ${setTypeLabel}\n`;
@@ -724,7 +859,7 @@
                 });
             }
 
-            // 3. Multi-Set Logic (Grouped by Operator - **UPDATED STRUCTURE**)
+            // 3. Multi-Set Logic (Grouped by Operator)
             const ids = Object.keys(results);
             const logicGroups = {
                 [NOTATION.INTERSECTION]: [], // Intersection (Equal/Not Equal Empty Set)
