@@ -2,413 +2,607 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Canvas Drawing & Analysis</title>
+    <title>Robust Set Theory Analysis</title>
     <style>
-        body {
-            font-family: sans-serif;
-            padding: 10px;
+        body { font-family: sans-serif; padding: 20px; display: flex; flex-direction: column; align-items: center; background: #f0f2f5; }
+        .toolbar {
+            background: white; padding: 10px 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 15px; width: 900px;
         }
-        .controls {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-        #drawingCanvas {
-            border: 1px solid #ccc;
-        }
-        #resultPre {
-            background: #f5f5f5;
-            padding: 8px;
-            margin-top: 8px;
-        }
+        .group { display: flex; gap: 5px; border-right: 1px solid #ddd; padding-right: 12px; align-items: center; }
+        .group:last-child { border-right: none; }
+        button { cursor: pointer; padding: 6px 12px; border: 1px solid #ccc; background: #f9f9f9; border-radius: 4px; font-size: 14px; }
+        button:hover { background: #e0e0e0; }
+        button.active { background: #007bff; color: white; border-color: #0069d9; }
+        select, input[type="text"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+        #mainSvg { background: white; border: 1px solid #999; box-shadow: 0 4px 6px rgba(0,0,0,0.05); cursor: crosshair; user-select: none; }
+        #analysisPanel { width: 900px; margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card h3 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 8px; font-size: 16px; color: #444; }
+        pre { font-family: monospace; font-size: 13px; white-space: pre-wrap; color: #333; margin: 0; }
     </style>
 </head>
 <body>
 
-    <div class="controls">
-        <select id="penSelect">
-            <option value='closed'>Closed Pen</option>
-            <option value='open'>Open Pen</option>
-        </select>
-        <button id="clearButton">Clear</button>
-        <button id="analyzeButton">Analyze</button>
+    <div class="toolbar">
+        <div class="group">
+            <label>Mode:</label>
+            <button id="modeDraw" class="active" onclick="setMode('draw')">Draw Set</button>
+            <button id="modePoint" onclick="setMode('point')">Place Points</button>
+        </div>
+        <div class="group" id="penTypeControls">
+            <label>Pen Type:</label>
+            <select id="penSelect" onchange="setPenType(this.value)">
+                <option value='closed'>Closed Pen</option>
+                <option value='open'>Open Pen</option>
+            </select>
+        </div>
+        <div class="group" id="setControls">
+            <label>Active Set:</label>
+            <select id="activeSetSelect" onchange="changeActiveSet()"></select>
+            <input type="text" id="setNameInput" placeholder="Set Name" oninput="updateSetName()" style="width: 100px;">
+        </div>
+        <div class="group">
+            <button onclick="undo()">↶ Undo</button>
+            <button onclick="redo()">↷ Redo</button>
+            <button onclick="clearAll()" style="color:red">Clear</button>
+        </div>
+        <div class="group">
+            <button onclick="analyze()">⚡ Analyze</button>
+            <button onclick="exportSVG()">⬇ Export SVG</button>
+        </div>
     </div>
-    
-    <canvas id="drawingCanvas" width="900" height="600"></canvas>
-    
-    <pre id="resultPre"></pre>
+
+    <svg id="mainSvg" width="900" height="600" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                <path d="M0,0 L10,5 L0,10" style="fill: #666;" />
+            </marker>
+        </defs>
+        <g id="layerSets"></g>
+        <g id="layerPoints"></g>
+        <g id="layerPreview"></g>
+        <g id="layerOverlay"></g>
+    </svg>
+
+    <div id="analysisPanel">
+        <div class="card">
+            <h3>Geometric Properties (Per Set)</h3>
+            <pre id="geoResult">Click Analyze to see results...</pre>
+        </div>
+        <div class="card">
+            <h3>Set Theory & Logic</h3>
+            <pre id="logicResult">Click Analyze to see results...</pre>
+        </div>
+    </div>
 
     <script>
-        // --- Configuration Constants ---
+        // --- CONSTANTS & CONFIG ---
         const W = 900, H = 600;
-        
-        // --- State Variables (Replacing React's useState) ---
-        let pen = 'closed'; // The current drawing mode ('closed' or 'open')
-        let strokes = [];   // Array of completed strokes {points: Array<Point>, type: 'closed'|'open'}
-        let current = null; // The currently active stroke {points: Array<Point>, type: 'closed'|'open'}
-        let result = '';    // The analysis result string
-        
-        // --- DOM Element References (Replacing React's useRef) ---
-        const canvas = document.getElementById('drawingCanvas');
-        const ctx = canvas.getContext('2d');
-        const penSelect = document.getElementById('penSelect');
-        const clearButton = document.getElementById('clearButton');
-        const analyzeButton = document.getElementById('analyzeButton');
-        const resultPre = document.getElementById('resultPre');
+        const CONFIG = {
+            fillColors: { 'A': 'rgba(255, 0, 0, 0.1)', 'B': 'rgba(0, 0, 255, 0.1)', 'C': 'rgba(0, 128, 0, 0.1)' },
+            strokeColors: { 'A': 'red', 'B': 'blue', 'C': 'green' }
+        };
 
-        // --- Utility Functions ---
+        // --- STATE ---
+        let state = {
+            sets: {
+                'A': { id: 'A', name: 'Set A', paths: [] }, // paths are: { d: 'M...', type: 'closed'|'open' }
+                'B': { id: 'B', name: 'Set B', paths: [] },
+                'C': { id: 'C', name: 'Set C', paths: [] }
+            },
+            points: [] 
+        };
+        let appState = {
+            mode: 'draw', 
+            penType: 'closed', 
+            activeSetId: 'A',
+            history: [],
+            future: [],
+            isDrawing: false,
+            currentPath: [],
+            dragStart: null,
+            activePointIndex: -1
+        };
 
-        /** Converts a mouse event to canvas local coordinates. */
-        function toLocal(e) {
-            const r = canvas.getBoundingClientRect();
-            return { x: e.clientX - r.left, y: e.clientY - r.top };
+        // --- DOM REFERENCES ---
+        const svg = document.getElementById('mainSvg');
+        const layerSets = document.getElementById('layerSets');
+        const layerPoints = document.getElementById('layerPoints');
+        const layerPreview = document.getElementById('layerPreview');
+        const layerOverlay = document.getElementById('layerOverlay');
+        const selectSet = document.getElementById('activeSetSelect');
+        const inputName = document.getElementById('setNameInput');
+        const penSelect = document.getElementById('penSelect'); 
+
+        // --- INIT & RENDER ---
+        function init() {
+            Object.keys(state.sets).forEach(key => {
+                const opt = document.createElement('option');
+                opt.value = key; opt.text = key;
+                selectSet.appendChild(opt);
+            });
+            updateUI();
+            saveHistory();
         }
 
-        /** Checks if the stroke is a loop (endpoint near start point). */
-        function isLoop(pts) {
-            if (pts.length < 6) return false;
-            const a = pts[0], b = pts[pts.length - 1];
-            return Math.hypot(a.x - b.x, a.y - b.y) < 12;
-        }
-        
-        // --- Drawing Functions ---
+        function render() {
+            layerSets.innerHTML = '';
+            Object.values(state.sets).forEach(set => {
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                set.paths.forEach(pData => { 
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', pData.d);
+                    path.setAttribute('stroke', CONFIG.strokeColors[set.id]);
+                    path.setAttribute('stroke-width', pData.type === 'open' ? '4' : '2');
+                    path.setAttribute('fill', pData.type === 'open' ? 'none' : CONFIG.fillColors[set.id]);
+                    path.setAttribute('stroke-dasharray', pData.type === 'open' ? '8, 4' : 'none');
+                    g.appendChild(path);
+                });
+                layerSets.appendChild(g);
+            });
 
-        /** Draws all completed strokes. (React useEffect equivalent) */
-        function drawAll() {
-            ctx.clearRect(0, 0, W, H);
-            
-            for (const s of strokes) {
-                ctx.beginPath();
-                ctx.lineWidth = 2;
-                ctx.setLineDash([]);
-                ctx.strokeStyle = s.type === 'open' ? 'red' : 'blue';
-                
-                const p0 = s.points[0];
-                ctx.moveTo(p0.x, p0.y);
-                for (let i = 1; i < s.points.length; i++) {
-                    ctx.lineTo(s.points[i].x, s.points[i].y);
+            layerPoints.innerHTML = '';
+            state.points.forEach((pt, idx) => {
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                if (pt.r > 0) {
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    circle.setAttribute('cx', pt.x); circle.setAttribute('cy', pt.y); circle.setAttribute('r', pt.r);
+                    circle.setAttribute('fill', 'rgba(255,215,0,0.1)'); circle.setAttribute('stroke', 'orange'); circle.setAttribute('stroke-dasharray', '4');
+                    g.appendChild(circle);
                 }
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('cx', pt.x); dot.setAttribute('cy', pt.y); dot.setAttribute('r', 4); dot.setAttribute('fill', 'black');
+                g.appendChild(dot);
                 
-                // Pure JS equivalent of React's conditional closePath/fill logic
-                ctx.closePath(); 
-                ctx.fillStyle = s.type === 'open' ? 'rgba(255,0,0,0.08)' : 'rgba(0,0,255,0.08)';
-                ctx.fill(); 
-                ctx.stroke();
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', pt.x + 8); text.setAttribute('y', pt.y - 8);
+                text.textContent = `P${idx+1}`; text.setAttribute('font-size', '12');
+                g.appendChild(text);
+                layerPoints.appendChild(g);
+            });
+        }
+
+        // --- INTERACTION ---
+        function getLoc(e) {
+            const pt = svg.createSVGPoint();
+            pt.x = e.clientX; pt.y = e.clientY;
+            return pt.matrixTransform(svg.getScreenCTM().inverse());
+        }
+
+        svg.addEventListener('mousedown', e => {
+            const p = getLoc(e);
+            appState.isDrawing = true;
+            if (appState.mode === 'draw') {
+                appState.currentPath = [p];
+            } else if (appState.mode === 'point') {
+                state.points.push({ x: p.x, y: p.y, r: 0 });
+                appState.activePointIndex = state.points.length - 1;
+                appState.dragStart = p;
+                render();
             }
-        }
+        });
 
-        /** Draws the current stroke in progress (preview). */
-        function drawPreview(s) {
-            drawAll(); // Redraw all completed strokes first
-            
-            ctx.beginPath();
-            ctx.lineWidth = 2;
-            ctx.setLineDash(s.type === 'open' ? [6, 4] : []);
-            ctx.strokeStyle = s.type === 'open' ? 'red' : 'blue';
-            
-            const p0 = s.points[0];
-            ctx.moveTo(p0.x, p0.y);
-            for (let i = 1; i < s.points.length; i++) {
-                ctx.lineTo(s.points[i].x, s.points[i].y);
+        svg.addEventListener('mousemove', e => {
+            if (!appState.isDrawing) return;
+            const p = getLoc(e);
+            if (appState.mode === 'draw') {
+                appState.currentPath.push(p);
+                const d = pointsToPath(appState.currentPath);
+                const stroke = CONFIG.strokeColors[appState.activeSetId];
+                const dash = appState.penType === 'open' ? '8, 4' : 'none';
+                layerPreview.innerHTML = `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="2" stroke-dasharray="${dash}"/>`;
+            } else if (appState.mode === 'point' && appState.activePointIndex !== -1) {
+                const start = appState.dragStart;
+                state.points[appState.activePointIndex].r = Math.hypot(p.x - start.x, p.y - start.y);
+                render();
             }
-            ctx.stroke();
-        }
+        });
 
-        // --- Event Handlers (Replacing React's function props) ---
-
-        /** Mousedown handler: Starts a new stroke. */
-        function start(e) {
-            if (e.button !== 0) return; // Only handle left click
-            const p = toLocal(e);
-            current = { points: [p], type: pen };
-        }
-
-        /** Mousemove handler: Adds points to the current stroke and previews. */
-        function move(e) {
-            if (!current) return;
-            const p = toLocal(e);
-            
-            // This replaces the state update logic: setCurrent(c=>{...})
-            current.points.push(p);
-            drawPreview(current);
-        }
-
-        /** Mouseup/Mouseleave handler: Ends the current stroke. */
-        function end() {
-            if (!current) return;
-            
-            const pts = current.points;
-            const loop = isLoop(pts);
-            
-            if (!loop) {
-                // If it's not a loop, discard the stroke
-                current = null;
-                drawAll(); // Redraw without the incomplete stroke
-                return;
-            }
-            
-            // If it is a loop, commit it to the strokes array (Replaces setStrokes)
-            strokes.push({ points: pts, type: current.type });
-            current = null;
-            drawAll(); // Redraw with the new completed stroke
-        }
-        
-        /** Clears the canvas and state. */
-        function clearCanvas() {
-            strokes = [];
-            current = null;
-            result = '';
-            resultPre.textContent = result;
-            drawAll();
-        }
-
-        /** Renders the analysis overlay. */
-        function renderOverlay(partMasks, boundaries) {
-            drawAll(); // Redraw existing strokes
-            
-            for (let pi = 0; pi < partMasks.length; pi++) {
-                const boundary = boundaries[pi];
-                ctx.beginPath();
-                for (let y = 0; y < H; y++) {
-                    for (let x = 0; x < W; x++) {
-                        if (boundary[y * W + x]) {
-                            ctx.rect(x, y, 1, 1);
-                        }
-                    }
+        svg.addEventListener('mouseup', () => {
+            if (!appState.isDrawing) return;
+            appState.isDrawing = false;
+            if (appState.mode === 'draw') {
+                if (appState.currentPath.length > 2) {
+                    const d = pointsToPath(appState.currentPath, true);
+                    state.sets[appState.activeSetId].paths.push({ d: d, type: appState.penType });
+                    layerPreview.innerHTML = '';
+                    saveHistory();
+                    render();
                 }
-                ctx.fillStyle = 'rgba(0,255,0,0.12)';
-                ctx.fill();
-                ctx.strokeStyle = 'green';
-                ctx.lineWidth = 1;
-                ctx.stroke();
+            } else if (appState.mode === 'point') {
+                appState.activePointIndex = -1;
+                saveHistory();
             }
+        });
+
+        function pointsToPath(pts, close=false) {
+            if (pts.length === 0) return '';
+            let d = `M ${pts[0].x} ${pts[0].y}`;
+            for (let i = 1; i < pts.length; i++) d += ` L ${pts[i].x} ${pts[i].y}`;
+            if (close) d += ' Z';
+            return d;
         }
 
-        // --- Analysis Functions (Unchanged core logic) ---
+        // --- HISTORY & UI ---
+        function saveHistory() {
+            const snapshot = JSON.parse(JSON.stringify(state));
+            appState.history.push(snapshot);
+            appState.future = [];
+        }
+        function undo() {
+            if (appState.history.length <= 1) return;
+            appState.future.push(appState.history.pop());
+            state = JSON.parse(JSON.stringify(appState.history[appState.history.length - 1]));
+            updateUI(); render();
+        }
+        function redo() {
+            if (appState.future.length === 0) return;
+            const next = appState.future.pop();
+            appState.history.push(next);
+            state = JSON.parse(JSON.stringify(next));
+            updateUI(); render();
+        }
+        function clearAll() {
+            state.points = [];
+            Object.values(state.sets).forEach(s => s.paths = []);
+            saveHistory(); render();
+            document.getElementById('geoResult').textContent = 'Cleared.';
+            document.getElementById('logicResult').textContent = 'Cleared.';
+            layerOverlay.innerHTML = '';
+        }
+        function setMode(m) {
+            appState.mode = m;
+            document.getElementById('modeDraw').className = m === 'draw' ? 'active' : '';
+            document.getElementById('modePoint').className = m === 'point' ? 'active' : '';
+            document.getElementById('setControls').style.opacity = m === 'draw' ? '1' : '0.5';
+            document.getElementById('penTypeControls').style.opacity = m === 'draw' ? '1' : '0.5';
+        }
+        function setPenType(type) { 
+            appState.penType = type;
+        }
+        function changeActiveSet() { appState.activeSetId = selectSet.value; updateUI(); }
+        function updateSetName() { state.sets[appState.activeSetId].name = inputName.value; }
+        function updateUI() {
+            const s = state.sets[appState.activeSetId];
+            inputName.value = s.name;
+            selectSet.value = s.id;
+        }
 
-        function cross(o, a, b) { return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x); }
+        // ==========================================================
+        // === CORE ANALYSIS ALGORITHMS (RESTORING ORIGINAL BEHAVIOR) ===
+        // ==========================================================
+
+        // Math Helpers (Kept for Diameter/Convexity reporting, although not the main focus)
+        function cross(o, a, b) { return (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x); }
         
         function convexHull(points) {
             if (points.length < 3) return points.slice();
-            points.sort((a, b) => a.x === b.x ? a.y - b.y : a.x - b.x);
-            
-            const lower = [];
-            for (const p of points) {
-                while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
-                lower.push(p);
-            }
-            
-            const upper = [];
-            for (let i = points.length - 1; i >= 0; i--) {
-                const p = points[i];
-                while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
-                upper.push(p);
-            }
-            
-            upper.pop();
-            lower.pop();
-            return lower.concat(upper);
+            points.sort((a,b)=>a.x===b.x? a.y-b.y : a.x-b.x);
+            const lower=[]; for(const p of points){ while(lower.length>=2 && cross(lower[lower.length-2], lower[lower.length-1], p)<=0) lower.pop(); lower.push(p); }
+            const upper=[]; for(let i=points.length-1;i>=0;i--){ const p=points[i]; while(upper.length>=2 && cross(upper[upper.length-2], upper[upper.length-1], p)<=0) upper.pop(); upper.push(p); }
+            upper.pop(); lower.pop(); return lower.concat(upper);
         }
-        
-        function diameterFromHull(hull) {
-            if (hull.length < 2) return 0;
-            let best = 0;
-            for (let i = 0; i < hull.length; i++) {
-                for (let j = i + 1; j < hull.length; j++) {
-                    const d = Math.hypot(hull[i].x - hull[j].x, hull[i].y - hull[j].y);
-                    if (d > best) best = d;
+
+        function diameterFromHull(hull){
+            if(hull.length<2) return 0;
+            let best=0;
+            for(let i=0;i<hull.length;i++){
+                for(let j=i+1;j<hull.length;j++){
+                    const d=Math.hypot(hull[i].x-hull[j].x,hull[i].y-hull[j].y);
+                    if(d>best) best=d;
                 }
             }
             return best;
         }
 
-        function analyze() {
-            if (strokes.length === 0) {
-                result = 'Nothing to analyze';
-                resultPre.textContent = result;
-                return;
-            }
+        // The central analysis function, now fully restoring the original logic for classification.
+        function analyzeSingleSet(setPaths, width, height) {
+            if(setPaths.length === 0) return null;
 
-            // Create an off-screen canvas for rendering masks
+            // 1. Rasterize Individual Strokes to create masks
             const off = document.createElement('canvas');
-            off.width = W;
-            off.height = H;
-            const octx = off.getContext('2d');
-            
-            const masks = [];
-            for (let i = 0; i < strokes.length; i++) {
-                const s = strokes[i];
-                octx.clearRect(0, 0, W, H);
-                octx.beginPath();
-                const p0 = s.points[0];
-                octx.moveTo(p0.x, p0.y);
-                for (let k = 1; k < s.points.length; k++) octx.lineTo(s.points[k].x, s.points[k].y);
-                octx.closePath();
-                octx.fillStyle = 'white';
-                octx.fill();
+            off.width = width; off.height = height;
+            const ctx = off.getContext('2d');
+            const strokeMasks = [];
+
+            for(const pData of setPaths) { 
+                ctx.clearRect(0,0,width,height);
+                ctx.fillStyle = 'black'; ctx.fillRect(0,0,width,height);
                 
-                const data = octx.getImageData(0, 0, W, H).data;
-                const mask = new Uint8Array(W * H);
-                for (let y = 0; y < H; y++) {
-                    for (let x = 0; x < W; x++) {
-                        mask[y * W + x] = data[(y * W + x) * 4 + 3] > 0 ? 1 : 0;
-                    }
+                const p = new Path2D(pData.d);
+                
+                if (pData.type === 'closed') {
+                    ctx.fillStyle = 'white'; ctx.fill(p); 
+                } else {
+                    ctx.strokeStyle = 'white'; ctx.lineWidth = 4; ctx.stroke(p); 
                 }
-                masks.push(mask);
+                
+                const data = ctx.getImageData(0,0,width,height).data;
+                const mask = new Uint8Array(width*height);
+                for(let k=0; k<width*height; k++) mask[k] = data[k*4] > 128 ? 1 : 0;
+                strokeMasks.push(mask);
             }
+            
+            // Collect stroke types for later classification check
+            const strokeTypes = setPaths.map(p => p.type);
 
-            // --- Overlap Adjacency Check ---
-            const adj = new Array(strokes.length).fill(0).map(() => []);
-            for (let i = 0; i < strokes.length; i++) {
-                for (let j = i + 1; j < strokes.length; j++) {
+            // 2. Build Adjacency Graph (Overlap Check)
+            const adj = new Array(setPaths.length).fill(0).map(()=>[]);
+            for(let i=0; i<setPaths.length; i++){
+                for(let j=i+1; j<setPaths.length; j++){
                     let overlap = false;
-                    const mi = masks[i], mj = masks[j];
-                    for (let k = 0; k < W * H; k++) {
-                        if (mi[k] && mj[k]) {
-                            overlap = true;
-                            break;
-                        }
+                    const mi = strokeMasks[i], mj = strokeMasks[j];
+                    for(let k=0; k<width*height; k++){
+                        if(mi[k] && mj[k]) { overlap=true; break; }
                     }
-                    if (overlap) {
-                        adj[i].push(j);
-                        adj[j].push(i);
-                    }
+                    if(overlap){ adj[i].push(j); adj[j].push(i); }
                 }
             }
 
-            // --- Connected Components (Parts) ---
+            // 3. Find Connected Components ("Parts")
             const parts = [];
-            const seen = new Array(strokes.length).fill(false);
-            for (let i = 0; i < strokes.length; i++) {
-                if (!seen[i]) {
-                    const q = [i];
-                    seen[i] = true;
-                    const part = [];
-                    while (q.length) {
-                        const u = q.pop();
-                        part.push(u);
-                        for (const v of adj[u]) {
-                            if (!seen[v]) {
-                                seen[v] = true;
-                                q.push(v);
-                            }
-                        }
+            const seen = new Array(setPaths.length).fill(false);
+            for(let i=0; i<setPaths.length; i++){
+                if(!seen[i]){
+                    const q=[i]; seen[i]=true; const part=[];
+                    while(q.length){
+                        const u=q.pop(); part.push(u);
+                        for(const v of adj[u]) if(!seen[v]){ seen[v]=true; q.push(v); }
                     }
                     parts.push(part);
                 }
             }
 
-            // --- Part Masks and Boundary Detection ---
-            const partMasks = [];
-            for (const part of parts) {
-                const pm = new Uint8Array(W * H);
-                for (const idx of part) {
-                    const m = masks[idx];
-                    for (let k = 0; k < W * H; k++) if (m[k]) pm[k] = 1;
+            // 4. Merge Masks (UNIFIED PIXEL-PERFECT UNION)
+            const partMasks = []; // Mask per Part
+            const unionMask = new Uint8Array(width*height); // Mask of the entire Set
+            const unionPixels = []; 
+            let pixelCount = 0;
+
+            for(const part of parts){
+                const pm = new Uint8Array(width*height); // Part Mask
+                for(const idx of part){
+                    const m = strokeMasks[idx];
+                    for(let k=0; k<width*height; k++) if(m[k]) pm[k] = 1;
                 }
                 partMasks.push(pm);
+
+                // Add to union and count pixels
+                for(let k=0; k<width*height; k++) {
+                    if(pm[k] && !unionMask[k]) {
+                        unionMask[k] = 1;
+                        pixelCount++;
+                    }
+                }
+            }
+            
+            // Collect all pixels for the Hull (Geometric analysis)
+            for(let k=0; k<width*height; k++) {
+                if(unionMask[k]) {
+                    unionPixels.push({x: k%width, y: Math.floor(k/width)});
+                }
             }
 
+            // 5. Part Boundary Detection & Classification (ORIGINAL LOGIC)
             const partResults = [];
-            const boundaries = [];
+            const boundaryMasks = [];
+            let finalSetType = 'neither';
+
             for (let pi = 0; pi < partMasks.length; pi++) {
                 const pm = partMasks[pi];
-                const boundary = new Uint8Array(W * H);
+                const boundary = new Uint8Array(width * height);
                 
-                // Boundary detection logic
-                for (let y = 0; y < H; y++) {
-                    for (let x = 0; x < W; x++) {
-                        const i = y * W + x;
+                // --- Boundary detection logic (ORIGINAL) ---
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const i = y * width + x;
                         if (!pm[i]) continue;
-                        const nb = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+                        const nb = [[-1, 0], [1, 0], [0, -1], [0, 1]]; // 4-neighbor check
                         for (const [dx, dy] of nb) {
                             const nx = x + dx, ny = y + dy;
-                            if (nx < 0 || nx >= W || ny < 0 || ny >= H) {
-                                boundary[i] = 1;
+                            if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+                                boundary[i] = 1; // Touches canvas edge
                                 break;
                             }
-                            const ni = ny * W + nx;
+                            const ni = ny * width + nx;
                             if (!pm[ni]) {
-                                boundary[i] = 1;
+                                boundary[i] = 1; // Touches empty space
                                 break;
                             }
                         }
                     }
                 }
-                boundaries.push(boundary);
+                boundaryMasks.push(boundary);
 
-                // Part type classification
+                // --- Part type classification (ORIGINAL) ---
                 const typesSeen = new Set();
-                for (const sIdx of parts[pi]) {
-                    const sm = masks[sIdx];
+                for (const sIdx of parts[pi]) { // sIdx is index of original stroke
+                    const sm = strokeMasks[sIdx];
                     let touches = false;
-                    for (let k = 0; k < W * H; k++) {
+                    for (let k = 0; k < width * height; k++) {
                         if (sm[k] && boundary[k]) {
                             touches = true;
                             break;
                         }
                     }
-                    if (touches) typesSeen.add(strokes[sIdx].type);
+                    
+                    // Only strokes that TOUCH the part boundary influence the type
+                    if (touches) typesSeen.add(strokeTypes[sIdx]); 
                 }
+                
                 let partType = 'neither';
                 if (typesSeen.size === 1) partType = typesSeen.has('open') ? 'open' : 'closed';
                 partResults.push(partType);
             }
-
-            // --- Final Set Classification ---
+            
+            // --- Final Set Classification (ORIGINAL) ---
             const unique = Array.from(new Set(partResults));
-            let setType = 'neither';
-            if (unique.length === 1) setType = unique[0];
+            if (unique.length === 1) finalSetType = unique[0];
 
-            // --- Convex Hull and Diameter ---
-            let unionPixels = [];
-            for (const pm of partMasks) {
-                for (let k = 0; k < W * H; k++) {
-                    if (pm[k]) unionPixels.push({ x: k % W, y: Math.floor(k / W) });
+
+            // 6. Geometric Analysis (Kept for completeness, but secondary)
+            let hull = [], diam = 0;
+            if(unionPixels.length > 0) {
+                hull = convexHull(unionPixels);
+                diam = diameterFromHull(hull);
+            }
+
+            // --- Render Boundary Overlay for analysis visualization ---
+            const partColors = ['rgba(0,255,0,0.12)', 'rgba(255,165,0,0.12)', 'rgba(128,0,128,0.12)'];
+            for (let pi = 0; pi < boundaryMasks.length; pi++) {
+                const boundary = boundaryMasks[pi];
+                const color = partColors[pi % partColors.length];
+                const pathData = [];
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        if (boundary[y * width + x]) {
+                            pathData.push(`M${x},${y}h1v1h-1z`);
+                        }
+                    }
+                }
+                if (pathData.length > 0) {
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', pathData.join(' '));
+                    path.setAttribute('fill', color);
+                    path.setAttribute('stroke', color.replace(/0\.12/g, '0.5')); // Darker stroke for boundary
+                    path.setAttribute('stroke-width', '1');
+                    layerOverlay.appendChild(path);
                 }
             }
+
+
+            // Return the full analysis result
+            return {
+                partsCount: parts.length,
+                setType: finalSetType, // CLASSIFICATION
+                unionMask: unionMask, 
+                hull: hull,
+                diam: diam,
+                area: pixelCount
+            };
+        }
+
+        function analyze() {
+            layerOverlay.innerHTML = '';
+            let geoText = "";
+            let logicText = "";
+
+            // 1. Analyze Each Set Individually
+            const results = {};
             
-            if (unionPixels.length === 0) {
-                result = 'No filled area detected';
-                resultPre.textContent = result;
-                return;
+            Object.values(state.sets).forEach(set => {
+                if(set.paths.length === 0) return;
+                
+                const res = analyzeSingleSet(set.paths, W, H);
+                if(!res) return;
+                
+                results[set.id] = res;
+
+                // Visual: Draw Hull (Kept for secondary analysis display)
+                if(res.hull.length > 2) {
+                    const d = pointsToPath(res.hull, true);
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', d);
+                    path.setAttribute('fill', 'none');
+                    path.setAttribute('stroke', '#666');
+                    path.setAttribute('stroke-dasharray', '4');
+                    layerOverlay.appendChild(path);
+                }
+
+                geoText += `[${set.name}]\n`;
+                geoText += `  Parts: ${res.partsCount}\n`;
+                geoText += `  Set Type: ${res.setType.toUpperCase()}\n`; // Restored classification
+                geoText += `  Diameter: ${res.diam.toFixed(1)}px\n`;
+                
+                let hullArea = 0;
+                if(res.hull.length >= 3) {
+                    let area = 0;
+                    for (let i = 0; i < res.hull.length; i++) {
+                        let j = (i + 1) % res.hull.length;
+                        area += res.hull[i].x * res.hull[j].y;
+                        area -= res.hull[j].x * res.hull[i].y;
+                    }
+                    hullArea = Math.abs(area / 2);
+                }
+                const convexity = hullArea > 0 ? (res.area / hullArea).toFixed(4) : 'N/A';
+                geoText += `  Convexity: ${convexity}\n`;
+                geoText += `  Area (px): ${res.area}\n`;
+                geoText += `----------------\n`;
+            });
+
+            // 2. Point Membership 
+            if(state.points.length > 0) {
+                logicText += "--- Points ---\n";
+                state.points.forEach((pt, i) => {
+                    const idx = Math.floor(pt.y)*W + Math.floor(pt.x);
+                    const inSets = [];
+                    Object.keys(results).forEach(sid => {
+                        if(results[sid].unionMask[idx]) inSets.push(state.sets[sid].name);
+                    });
+                    
+                    let neighborInfo = "";
+                    if(pt.r > 0) {
+                        neighborInfo = ` (R=${Math.round(pt.r)})`;
+                    }
+
+                    logicText += `P${i+1}${neighborInfo}: ${inSets.length ? "Inside "+inSets.join(", ") : "Outside"}\n`;
+                });
             }
 
-            const hull = convexHull(unionPixels);
-            const diam = diameterFromHull(hull).toFixed(2);
-
-            // --- Update Result ---
-            result = `Parts: ${parts.length}\nSet: ${setType}\nDiameter(px): ${diam}`;
-            resultPre.textContent = result;
+            // 3. Multi-Set Logic 
+            logicText += "\n--- Logic ---\n";
+            const ids = Object.keys(results);
             
-            // Render the analysis overlay
-            renderOverlay(partMasks, boundaries);
+            for(let i=0; i<ids.length; i++){
+                for(let j=0; j<ids.length; j++){
+                    if(i===j) continue;
+                    const idA = ids[i], idB = ids[j];
+                    const maskA = results[idA].unionMask;
+                    const maskB = results[idB].unionMask;
+                    const nameA = state.sets[idA].name;
+                    const nameB = state.sets[idB].name;
+
+                    let intersectCount = 0;
+                    let onlyACount = 0;
+                    let aInB = true;
+
+                    for(let k=0; k<maskA.length; k++){
+                        const a = maskA[k];
+                        const b = maskB[k];
+                        if(a && b) intersectCount++;
+                        if(a && !b) {
+                            onlyACount++;
+                            aInB = false;
+                        }
+                    }
+
+                    if(intersectCount > 0 && i < j) {
+                        logicText += `${nameA} ∩ ${nameB} (Intersect): ${intersectCount}px\n`;
+                    }
+                    if(onlyACount > 0 && i < j) {
+                        logicText += `${nameA} \\ ${nameB} (Difference): ${onlyACount}px\n`;
+                    }
+                    if(aInB && results[idA].area > 0) {
+                        logicText += `${nameA} ⊂ ${nameB} (SUBSET)\n`;
+                    }
+                }
+            }
+
+            document.getElementById('geoResult').textContent = geoText || "No sets drawn.";
+            document.getElementById('logicResult').textContent = logicText || "No interactions.";
         }
 
-        // --- Initialization and Event Listeners ---
-
-        function initialize() {
-            // Initial draw
-            drawAll(); 
-
-            // Control event listeners
-            penSelect.addEventListener('change', (e) => {
-                pen = e.target.value;
-            });
-            clearButton.addEventListener('click', clearCanvas);
-            analyzeButton.addEventListener('click', analyze);
-
-            // Canvas event listeners
-            canvas.addEventListener('mousedown', start);
-            // Use pointer events for potentially better touch support, though original used mouse
-            canvas.addEventListener('mousemove', move); 
-            canvas.addEventListener('mouseup', end);
-            canvas.addEventListener('mouseleave', end);
+        function exportSVG() {
+            const data = new XMLSerializer().serializeToString(svg);
+            const blob = new Blob([data], {type: 'image/svg+xml;charset=utf-8'});
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url; link.download = 'set_analysis.svg';
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
-        // Start the application
-        initialize();
+        init();
     </script>
-
 </body>
 </html>
