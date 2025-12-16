@@ -1,7 +1,10 @@
+// Located in: /main.js
+
 import { state, saveHistory, undo, redo, updateUI } from './scripts/state.js';
 import { render } from './scripts/render.js';
-import { setupInteraction } from './scripts/interaction.js';
+import { setupInteraction, exportSVG } from './scripts/interaction.js'; 
 import { selectSet } from './scripts/config.js';
+import { analyze } from './scripts/analysis.js'; 
 
 // --- INITIALIZATION ---
 function init() {
@@ -15,6 +18,10 @@ function init() {
     // Wire up undo/redo global functions
     window.undo = () => { if (undo()) { updateUI(); render(); } };
     window.redo = () => { if (redo()) { updateUI(); render(); } };
+
+    // Expose Analyze and Export SVG functions to the global window object 
+    window.analyze = analyze;
+    window.exportSVG = exportSVG;
 
     // Set initial UI/State
     setupInteraction();
