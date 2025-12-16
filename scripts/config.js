@@ -1,10 +1,12 @@
 // --- CONSTANTS & CONFIG ---
 export const W = 1280; // Internal SVG width
 export const H = 720; // Internal SVG height
+
 export const CONFIG = {
     fillColors: { 'A': 'rgba(255, 0, 0, 0.1)', 'B': 'rgba(0, 0, 255, 0.1)', 'C': 'rgba(0, 128, 0, 0.1)' },
     strokeColors: { 'A': 'red', 'B': 'blue', 'C': 'green' }
 };
+
 export const BOUNDARY_PROXIMITY = 4;
 export const CLOSING_DISTANCE = 1000; 
 
@@ -25,6 +27,7 @@ export const NOTATION = {
 };
 
 // --- DOM ELEMENTS ---
+// These are safe to query here because type="module" defers execution
 export const svg = document.getElementById('mainSvg');
 export const layerSets = document.getElementById('layerSets');
 export const layerPoints = document.getElementById('layerPoints');

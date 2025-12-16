@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robust Set Theory Analysis</title>
+    <style>
+        /* BASE & TYPOGRAPHY */
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 10px; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            background: #f8f9fa; /* Light, clean background */
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        /* TOOLBAR - Responsive Flex Layout */
+        .toolbar {
+            background: white; 
+            padding: 10px 15px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); /* Deeper shadow for elevation */
+            display: flex; 
+            gap: 15px; 
+            align-items: center; 
+            flex-wrap: wrap; 
+            margin-bottom: 20px; 
+            width: 100%;
+            max-width: 1300px;
+        }
+        .group { 
+            display: flex; 
+            gap: 8px; 
+            border-right: 1px solid #e9ecef; /* Subtle divider */
+            padding-right: 15px; 
+            align-items: center; 
+        }
+        .group:last-child { 
+            border-right: none; 
+            padding-right: 0; 
+        }
+        label {
+            font-size: 0.9rem;
+            color: #495057;
+            font-weight: 600;
+        }
+
+        /* BUTTONS */
+        button { 
+            cursor: pointer; 
+            padding: 8px 15px; 
+            border: 1px solid #adb5bd; 
+            background: #e9ecef; 
+            border-radius: 6px; 
+            font-size: 0.9rem; 
+            transition: all 0.2s ease;
+        }
+        button:hover { 
+            background: #dee2e6; 
+            border-color: #ced4da; 
+        }
+        button.active { 
+            background: #007bff; 
+            color: white; 
+            border-color: #0069d9; 
+            box-shadow: 0 2px 4px rgba(0,123,255,0.3);
+        }
+        select, input[type="text"] { 
+            padding: 8px; 
+            border: 1px solid #ced4da; 
+            border-radius: 6px; 
+            font-size: 0.9rem;
+            background: #fff;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+        }
+        #setNameInput { width: 80px !important; }
+
+        /* SVG CANVAS - Dynamic Size */
+        #mainSvg { 
+            background: white; 
+            border: 1px solid #ced4da; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08); 
+            cursor: crosshair; 
+            user-select: none; 
+            width: 100%; /* Make SVG width 100% of its container */
+            max-width: 1300px; /* Constrain max size */
+            height: auto; /* Height will be managed by viewBox/aspect ratio */
+            border-radius: 8px;
+        }
+
+        /* ANALYSIS PANEL - Responsive Grid */
+        #analysisPanel { 
+            width: 100%; 
+            max-width: 1300px;
+            margin-top: 20px; 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* Responsive grid columns */
+            gap: 20px; 
+        }
+        .card { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
+            border-left: 5px solid #007bff; /* Highlight border */
+            min-height: 250px;
+        }
+        .card h3 { 
+            margin-top: 0; 
+            border-bottom: 2px solid #e9ecef; 
+            padding-bottom: 10px; 
+            font-size: 1.1rem; 
+            color: #343a40; 
+        }
+        pre { 
+            font-family: 'Fira Code', 'Lucida Console', monospace; 
+            font-size: 0.85rem; 
+            white-space: pre-wrap; 
+            color: #212529; 
+            margin: 0; 
+            line-height: 1.4;
+        }
+        .math-notation { 
+            font-family: 'Times New Roman', serif; 
+            font-style: italic; 
+            font-weight: bold; 
+        }
+
+        /* Responsive Adjustments */
+        @media (max-width: 768px) {
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 10px;
+            }
+            .group {
+                border-right: none;
+                padding-right: 0;
+                border-bottom: 1px solid #e9ecef;
+                padding-bottom: 10px;
+                margin-bottom: 5px;
+                flex-wrap: wrap;
+            }
+            .group:last-child {
+                border-bottom: none;
+            }
+            .group button, .group select, .group input {
+                flex-grow: 1; /* Allow controls to fill space */
+            }
+            #analysisPanel {
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="toolbar">
+        <div class="group">
+            <label>Mode:</label>
+            <button id="modeDraw" class="active" onclick="setMode('draw')">Draw Set</button>
+            <button id="modePoint" onclick="setMode('point')">Place Points</button>
+        </div>
+        <div class="group" id="penTypeControls">
+            <label>Pen Type:</label>
+            <select id="penSelect" onchange="setPenType(this.value)">
+                <option value='closed'>Closed Pen</option>
+                <option value='open'>Open Pen</option>
+            </select>
+        </div>
+        <div class="group" id="setControls">
+            <label>Active Set:</label>
+            <select id="activeSetSelect" onchange="changeActiveSet()"></select>
+            <input type="text" id="setNameInput" placeholder="Set Name" oninput="updateSetName()" style="width: 100px;">
+        </div>
+        <div class="group">
+            <button onclick="undo()">↶ Undo</button>
+            <button onclick="redo()">↷ Redo</button>
+        </div>
+        <div class="group">
+            <button onclick="clearAll()" style="color:red">Clear All</button>
+        </div>
+        <div class="group">
+            <button onclick="analyze()">⚡ Analyze</button>
+            <button onclick="exportSVG()">⬇ Export SVG</button>
+        </div>
+    </div>
+
+    <svg id="mainSvg" viewBox="0 0 1280 720" width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                <path d="M0,0 L10,5 L0,10" style="fill: #666;" />
+            </marker>
+        </defs>
+        <g id="layerSets"></g>
+        <g id="layerPoints"></g>
+        <g id="layerPreview"></g>
+        <g id="layerOverlay"></g>
+    </svg>
+
+    <div id="analysisPanel">
+        <div class="card">
+            <h3>Set Properties</h3>
+            <pre id="geoResult">Click Analyze to see results...</pre>
+        </div>
+        <div class="card">
+            <h3>Point Classification</h3>
+            <pre id="pointResult">Place points and click Analyze...</pre>
+        </div>
+        <div class="card">
+            <h3>Set Theory & Logic</h3>
+            <pre id="logicResult">Click Analyze to see results...</pre>
+        </div>
+    </div>
+
+    <script>
+        // --- CONSTANTS & CONFIG ---
+        // W and H define the internal coordinate system, now fixed by viewBox="0 0 1280 720"
+        const W = 1280, H = 720; 
+        const CONFIG = {
+            fillColors: { 'A': 'rgba(255, 0, 0, 0.1)', 'B': 'rgba(0, 0, 255, 0.1)', 'C': 'rgba(0, 128, 0, 0.1)' },
+            strokeColors: { 'A': 'red', 'B': 'blue', 'C': 'green' }
+        };
+        const BOUNDARY_PROXIMITY = 4;
+        const CLOSING_DISTANCE = 1000; 
+        
+        // --- NOTATION ---
+        const NOTATION = {
+            INTERIOR: '⁰',
+            BOUNDARY: '∂',
+            CLOSURE: '̅',
+            ELEMENT_OF: '∈',
+            NOT_ELEMENT_OF: '∉',
+            INTERSECTION: '∩',
+            DIFFERENCE: '\\',
+            EMPTY_SET: '∅',
+            SUBSET: '⊂',
+            EQUAL: '=',
+            NOT_EQUAL: '≠',
+            NEIGHBORHOOD: 'N'
+        };
+
+
+        // --- STATE & UTILS ---
+        let state = {
+            sets: {
+                'A': { id: 'A', name: 'A', paths: [] }, 
+                'B': { id: 'B', name: 'B', paths: [] },
+                'C': { id: 'C', name: 'C', paths: [] },
+                'D': { id: 'D', name: 'D', paths: [] },
+                'E': { id: 'E', name: 'E', paths: [] },
+                'F': { id: 'F', name: 'F', paths: [] },
+                'G': { id: 'G', name: 'G', paths: [] },
+                'H': { id: 'H', name: 'H', paths: [] },
+                'I': { id: 'I', name: 'I', paths: [] },
+                'J': { id: 'J', name: 'J', paths: [] },
+                'K': { id: 'K', name: 'K', paths: [] },
+                'L': { id: 'L', name: 'L', paths: [] },
+                'M': { id: 'M', name: 'M', paths: [] },
+                'N': { id: 'N', name: 'N', paths: [] },
+                'O': { id: 'O', name: 'O', paths: [] },
+                'P': { id: 'P', name: 'P', paths: [] },
+                'Q': { id: 'Q', name: 'Q', paths: [] },
+                'R': { id: 'R', name: 'R', paths: [] },
+                'S': { id: 'S', name: 'S', paths: [] },
+                'T': { id: 'T', name: 'T', paths: [] },
+                'U': { id: 'U', name: 'U', paths: [] },
+                'V': { id: 'V', name: 'V', paths: [] },
+                'W': { id: 'W', name: 'W', paths: [] },
+                'X': { id: 'X', name: 'X', paths: [] },
+                'Y': { id: 'Y', name: 'Y', paths: [] },
+                'Z': { id: 'Z', name: 'Z', paths: [] }
+            },
+            points: [] 
+        };
+        let appState = {
+            mode: 'draw', 
+            penType: 'closed', 
+            activeSetId: 'A',
+            history: [],
+            future: [],
+            isDrawing: false,
+            currentPath: [],
+            dragStart: null,
+            activePointIndex: -1
+        };
+
+        const svg = document.getElementById('mainSvg');
+        const layerSets = document.getElementById('layerSets');
+        const layerPoints = document.getElementById('layerPoints');
+        const layerPreview = document.getElementById('layerPreview');
+        const layerOverlay = document.getElementById('layerOverlay');
+        const selectSet = document.getElementById('activeSetSelect');
+        const inputName = document.getElementById('setNameInput');
+        const penSelect = document.getElementById('penSelect'); 
+
+        function init() {
+            Object.keys(state.sets).forEach(key => {
+                const opt = document.createElement('option');
+                opt.value = key; opt.text = key;
+                selectSet.appendChild(opt);
+            });
+            updateUI();
+            saveHistory();
+        }
+
+        function render() {
+            layerSets.innerHTML = '';
+            Object.values(state.sets).forEach(set => {
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                set.paths.forEach(pData => { 
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', pData.d);
+                    path.setAttribute('stroke', CONFIG.strokeColors[set.id]);
+                    path.setAttribute('stroke-width', '2'); 
+                    
+                    const isLoop = pData.d.trim().toUpperCase().endsWith('Z');
+                    path.setAttribute('fill', isLoop ? CONFIG.fillColors[set.id] : 'none');
+                    
+                    path.setAttribute('stroke-dasharray', pData.type === 'open' ? '8, 4' : 'none');
+                    g.appendChild(path);
+                });
+                layerSets.appendChild(g);
+            });
+
+            layerPoints.innerHTML = '';
+            state.points.forEach((pt, idx) => {
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                if (pt.r > 0) {
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    circle.setAttribute('cx', pt.x); circle.setAttribute('cy', pt.y); circle.setAttribute('r', pt.r);
+                    circle.setAttribute('fill', 'rgba(255,215,0,0.1)'); circle.setAttribute('stroke', 'orange'); circle.setAttribute('stroke-dasharray', '4');
+                    g.appendChild(circle);
+                }
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('cx', pt.x); dot.setAttribute('cy', pt.y); dot.setAttribute('r', 4); dot.setAttribute('fill', 'black');
+                g.appendChild(dot);
+                
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', pt.x + 8); text.setAttribute('y', pt.y - 8);
+                text.textContent = `P${idx+1}`; text.setAttribute('font-size', '12');
+                g.appendChild(text);
+                layerPoints.appendChild(g);
+            });
+        }
+        
+        // --- INTERACTION & HISTORY ---
+        function getLoc(e) {
+            const pt = svg.createSVGPoint();
+            pt.x = e.clientX; pt.y = e.clientY;
+            return pt.matrixTransform(svg.getScreenCTM().inverse());
+        }
+        svg.addEventListener('mousedown', e => {
+            const p = getLoc(e);
+            appState.isDrawing = true;
+            if (appState.mode === 'draw') {
+                appState.currentPath = [p];
+            } else if (appState.mode === 'point') {
+                state.points.push({ x: p.x, y: p.y, r: 0 });
+                appState.activePointIndex = state.points.length - 1;
+                appState.dragStart = p;
+                render();
+            }
+        });
+        svg.addEventListener('mousemove', e => {
+            if (!appState.isDrawing) return;
+            const p = getLoc(e);
+            if (appState.mode === 'draw') {
+                appState.currentPath.push(p);
+                const start = appState.currentPath[0];
+                const distance = Math.hypot(p.x - start.x, p.y - start.y);
+                const isClosed = distance < CLOSING_DISTANCE;
+                const d = pointsToPath(appState.currentPath, isClosed);
+                const stroke = CONFIG.strokeColors[appState.activeSetId];
+                const dash = appState.penType === 'open' ? '8, 4' : 'none';
+                const fill = isClosed ? CONFIG.fillColors[appState.activeSetId] : 'none';
+                layerPreview.innerHTML = `<path d="${d}" fill="${fill}" stroke="${stroke}" stroke-width="2" stroke-dasharray="${dash}"/>`;
+            } else if (appState.mode === 'point' && appState.activePointIndex !== -1) {
+                const start = appState.dragStart;
+                state.points[appState.activePointIndex].r = Math.hypot(p.x - start.x, p.y - start.y);
+                render();
+            }
+        });
+        svg.addEventListener('mouseup', () => {
+            if (!appState.isDrawing) return;
+            appState.isDrawing = false;
+            if (appState.mode === 'draw') {
+                if (appState.currentPath.length > 2) {
+                    const start = appState.currentPath[0];
+                    const end = appState.currentPath[appState.currentPath.length - 1];
+                    const distance = Math.hypot(end.x - start.x, end.y - start.y);
+                    const isClosed = distance < CLOSING_DISTANCE;
+                    const d = pointsToPath(appState.currentPath, isClosed); 
+                    state.sets[appState.activeSetId].paths.push({ d: d, type: appState.penType });
+                    layerPreview.innerHTML = '';
+                    saveHistory();
+                    render();
+                }
+            } else if (appState.mode === 'point') {
+                appState.activePointIndex = -1;
+                saveHistory();
+            }
+        });
+        function pointsToPath(pts, close=false) {
+            if (pts.length === 0) return '';
+            let d = `M ${pts[0].x} ${pts[0].y}`;
+            for (let i = 1; i < pts.length; i++) d += ` L ${pts[i].x} ${pts[i].y}`;
+            if (close) d += ' Z';
+            return d;
+        }
+        function saveHistory() {
+            const snapshot = JSON.parse(JSON.stringify(state));
+            appState.history.push(snapshot);
+            appState.future = [];
+        }
+        function undo() {
+            if (appState.history.length <= 1) return;
+            appState.future.push(appState.history.pop());
+            state = JSON.parse(JSON.stringify(appState.history[appState.history.length - 1]));
+            updateUI(); render();
+        }
+        function redo() {
+            if (appState.future.length === 0) return;
+            const next = appState.future.pop();
+            appState.history.push(next);
+            state = JSON.parse(JSON.stringify(next));
+            updateUI(); render();
+        }
+        function clearAll() {
+            state.points = [];
+            Object.values(state.sets).forEach(s => s.paths = []);
+            saveHistory(); render();
+            document.getElementById('geoResult').textContent = 'Cleared.';
+            document.getElementById('pointResult').textContent = 'Cleared.';
+            document.getElementById('logicResult').textContent = 'Cleared.';
+            layerOverlay.innerHTML = '';
+        }
+        function setMode(m) {
+            appState.mode = m;
+            document.getElementById('modeDraw').className = m === 'draw' ? 'active' : '';
+            document.getElementById('modePoint').className = m === 'point' ? 'active' : '';
+            document.getElementById('setControls').style.opacity = m === 'draw' ? '1' : '0.5';
+            document.getElementById('penTypeControls').style.opacity = m === 'draw' ? '1' : '0.5';
+        }
+        function setPenType(type) { 
+            appState.penType = type;
+        }
+        function changeActiveSet() { appState.activeSetId = selectSet.value; updateUI(); }
+        function updateSetName() { 
+            const newName = inputName.value.trim().toUpperCase();
+            state.sets[appState.activeSetId].name = newName || appState.activeSetId;
+        }
+        function updateUI() {
+            const s = state.sets[appState.activeSetId];
+            inputName.value = s.name;
+            selectSet.value = s.id;
+        }
+
+        // --- Core Functions (No Change in Logic) ---
+
+        function isPointNearBoundary(px, py, boundaryMask, width, distance) {
+            for (let dy = -distance; dy <= distance; dy++) {
+                for (let dx = -distance; dx <= distance; dx++) {
+                    const nx = Math.floor(px) + dx;
+                    const ny = Math.floor(py) + dy;
+                    if (nx >= 0 && nx < width && ny >= 0 && ny < H) {
+                        const ni = ny * width + nx;
+                        if (boundaryMask[ni]) return true;
+                    }
+                }
+            }
+            return false;
+        }
+        
+        // Helper function for diameter calculation (Convex Hull + Rotating Calipers)
+        function calculateDiameter(mask, width, height) {
+            const pts = [];
+            for (let y = 0; y < height; y++) {
+                const row = y * width;
+                for (let x = 0; x < width; x++) {
+                    if (mask[row + x]) pts.push([x, y]);
+                }
+            }
+
+            if (pts.length < 2) return 0;
+
+            // --- Convex Hull (Monotonic Chain) ---
+            pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+
+            const cross = (o, a, b) =>
+                (a[0] - o[0]) * (b[1] - o[1]) -
+                (a[1] - o[1]) * (b[0] - o[0]);
+
+            const hull = [];
+
+            // lower hull
+            for (const p of pts) {
+                while (hull.length >= 2 && cross(hull[hull.length - 2], hull[hull.length - 1], p) <= 0)
+                    hull.pop();
+                hull.push(p);
+            }
+
+            // upper hull
+            const lowerSize = hull.length;
+            for (let i = pts.length - 1; i >= 0; i--) {
+                const p = pts[i];
+                while (hull.length > lowerSize && cross(hull[hull.length - 2], hull[hull.length - 1], p) <= 0)
+                    hull.pop();
+                hull.push(p);
+            }
+
+            hull.pop(); // last point is duplicate
+
+            // --- Rotating Calipers for Diameter ---
+            let maxDistSq = 0;
+            let j = 1;
+
+            const distSq = (a, b) => {
+                const dx = a[0] - b[0];
+                const dy = a[1] - b[1];
+                return dx * dx + dy * dy;
+            };
+
+            for (let i = 0; i < hull.length; i++) {
+                const next = (i + 1) % hull.length;
+
+                while (true) {
+                    const nextJ = (j + 1) % hull.length;
+                    const crossVal =
+                        Math.abs(cross(hull[i], hull[next], hull[nextJ])) -
+                        Math.abs(cross(hull[i], hull[next], hull[j]));
+
+                    if (crossVal > 0) j = nextJ;
+                    else break;
+                }
+
+                maxDistSq = Math.max(maxDistSq, distSq(hull[i], hull[j]));
+            }
+
+            return Math.sqrt(maxDistSq).toFixed(2);
+        }
+
+
+        function analyzeSingleSet(setPaths, width, height) {
+            if(setPaths.length === 0) return null;
+
+            // Rasterization logic (unchanged)
+            const off = document.createElement('canvas');
+            off.width = width; off.height = height;
+            const ctx = off.getContext('2d');
+            const strokeMasks = [];
+
+            for(const pData of setPaths) { 
+                ctx.clearRect(0,0,width,height);
+                ctx.fillStyle = 'black'; ctx.fillRect(0,0,width,height);
+                const p = new Path2D(pData.d);
+                
+                if (pData.d.trim().toUpperCase().endsWith('Z')) { 
+                    ctx.fillStyle = 'white'; ctx.fill(p); 
+                } else {
+                    ctx.strokeStyle = 'white'; ctx.lineWidth = 4; ctx.stroke(p); 
+                }
+                
+                const data = ctx.getImageData(0,0,width,height).data;
+                const mask = new Uint8Array(width*height);
+                for(let k=0; k<width*height; k++) mask[k] = data[k*4] > 128 ? 1 : 0;
+                strokeMasks.push(mask);
+            }
+            
+            const strokeTypes = setPaths.map(p => p.type);
+            
+            // Parts and Preliminary Union (unchanged)
+            const adj = new Array(setPaths.length).fill(0).map(()=>[]);
+            for(let i=0; i<setPaths.length; i++){
+                for(let j=i+1; j<setPaths.length; j++){
+                    let overlap = false;
+                    const mi = strokeMasks[i], mj = strokeMasks[j];
+                    for(let k=0; k<width*height; k++){
+                        if(mi[k] && mj[k]) { overlap=true; break; }
+                    }
+                    if(overlap){ adj[i].push(j); adj[j].push(i); }
+                }
+            }
+            const parts = [];
+            const seen = new Array(setPaths.length).fill(false);
+            for(let i=0; i<setPaths.length; i++){
+                if(!seen[i]){
+                    const q=[i]; seen[i]=true; const part=[];
+                    while(q.length){
+                        const u=q.pop(); part.push(u);
+                        for(const v of adj[u]) if(!seen[v]){ seen[v]=true; q.push(v); }
+                    }
+                    parts.push(part);
+                }
+            }
+            const partMasks = []; 
+            let preliminaryUnionMask = new Uint8Array(width*height); 
+            for(const part of parts){
+                const pm = new Uint8Array(width*height); 
+                for(const idx of part){
+                    const m = strokeMasks[idx];
+                    for(let k=0; k<width*height; k++) if(m[k]) pm[k] = 1;
+                }
+                partMasks.push(pm);
+                for(let k=0; k<width*height; k++) {
+                    if(pm[k] && !preliminaryUnionMask[k]) {
+                        preliminaryUnionMask[k] = 1;
+                    }
+                }
+            }
+
+            // Boundary Detection & Final Mask (unchanged)
+            const partResults = [];
+            const boundaryMask = new Uint8Array(width * height); 
+            let finalSetType = 'neither';
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const i = y * width + x;
+                    if (!preliminaryUnionMask[i]) continue;
+                    const nb = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, 1], [1, -1], [-1, 1]]; 
+                    let isBoundary = false;
+                    for (const [dx, dy] of nb) {
+                        const nx = x + dx, ny = y + dy;
+                        if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+                            isBoundary = true; 
+                            break;
+                        }
+                        const ni = ny * width + nx;
+                        if (!preliminaryUnionMask[ni]) {
+                            isBoundary = true; 
+                            break;
+                        }
+                    }
+                    if (isBoundary) {
+                        boundaryMask[i] = 1; 
+                    }
+                }
+            }
+            
+            // Part Type Classification (unchanged)
+            for (let pi = 0; pi < partMasks.length; pi++) {
+                const partMask = partMasks[pi];
+                const partBoundary = new Uint8Array(width * height);
+                for (let k = 0; k < W*H; k++) {
+                    if (partMask[k] && boundaryMask[k]) {
+                        partBoundary[k] = 1;
+                    }
+                }
+                const typesSeen = new Set();
+                for (const sIdx of parts[pi]) { 
+                    const sm = strokeMasks[sIdx];
+                    let touches = false;
+                    for (let k = 0; k < width * height; k++) {
+                        if (sm[k] && partBoundary[k]) {
+                            touches = true;
+                            break;
+                        }
+                    }
+                    if (touches) typesSeen.add(strokeTypes[sIdx]); 
+                }
+                let partType = 'neither';
+                if (typesSeen.size === 1) partType = typesSeen.has('open') ? 'open' : 'closed';
+                partResults.push(partType);
+            }
+            const unique = Array.from(new Set(partResults));
+            if (unique.length === 1) finalSetType = unique[0];
+
+            let unionMask = new Uint8Array(width * height);
+            let pixelCount = 0;
+            if (finalSetType === 'open') {
+                for (let k = 0; k < width * height; k++) {
+                    if (preliminaryUnionMask[k] && !boundaryMask[k]) {
+                        unionMask[k] = 1;
+                        pixelCount++;
+                    }
+                }
+            } else { 
+                unionMask = preliminaryUnionMask;
+                for (let k = 0; k < width * height; k++) {
+                    if (unionMask[k]) {
+                        pixelCount++;
+                    }
+                }
+            }
+            
+            // Calculate Diameter 
+            const diameter = calculateDiameter(unionMask, width, height);
+
+            // Boundary Overlay (unchanged)
+            layerOverlay.innerHTML = '';
+            let boundaryPathData = [];
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    if (boundaryMask[y * width + x]) { 
+                        boundaryPathData.push(`M${x},${y}h1v1h-1z`);
+                    }
+                }
+            }
+            if (boundaryPathData.length > 0) {
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', boundaryPathData.join(' '));
+                path.setAttribute('fill', 'rgba(255, 100, 100, 0.2)');
+                path.setAttribute('stroke', 'none'); 
+                layerOverlay.appendChild(path);
+            }
+
+            return {
+                partsCount: parts.length,
+                setType: finalSetType, 
+                unionMask: unionMask, 
+                boundaryMask: boundaryMask, 
+                diameter: diameter 
+            };
+        }
+
+        function analyzePointWithNeighborhood(pt, results, W, H) {
+            const r = pt.r || 1; 
+            const setInteractions = {}; 
+
+            Object.keys(results).forEach(sid => {
+                setInteractions[sid] = { totalCheck: 0, inside: 0, outside: 0 };
+            });
+
+            const cx = pt.x;
+            const cy = pt.y;
+            const minX = Math.max(0, Math.floor(cx - r));
+            const maxX = Math.min(W - 1, Math.ceil(cx + r));
+            const minY = Math.max(0, Math.floor(cy - r));
+            const maxY = Math.min(H - 1, Math.ceil(cy + r));
+
+            for (let x = minX; x <= maxX; x++) {
+                for (let y = minY; y <= maxY; y++) {
+                    if (Math.hypot(x - cx, y - cy) <= r) {
+                        const idx = y * W + x;
+                        Object.keys(results).forEach(sid => {
+                            setInteractions[sid].totalCheck++;
+                            if (results[sid].unionMask[idx]) {
+                                setInteractions[sid].inside++;
+                            } else {
+                                setInteractions[sid].outside++;
+                            }
+                        });
+                    }
+                }
+            }
+
+            let statements = [];
+
+            Object.keys(results).forEach(sid => {
+                const interaction = setInteractions[sid];
+                if (interaction.totalCheck === 0) return;
+
+                const name = state.sets[sid].name;
+                const insideCount = interaction.inside;
+                const outsideCount = interaction.outside;
+                const pointName = `P${state.points.findIndex(p => p === pt) + 1}`;
+                const neighborhood = `${NOTATION.NEIGHBORHOOD}(${pointName})`;
+                
+                if (insideCount > 0 && outsideCount === 0) {
+                    statements.push(`${neighborhood} ${NOTATION.SUBSET} ${name}`);
+                } else if (insideCount > 0 && outsideCount > 0) {
+                    statements.push(`${neighborhood} ${NOTATION.INTERSECTION} ${name} ${NOTATION.NOT_EQUAL} ${NOTATION.EMPTY_SET}`);
+                } else {
+                    statements.push(`${neighborhood} ${NOTATION.INTERSECTION} ${name} ${NOTATION.EQUAL} ${NOTATION.EMPTY_SET}`);
+                }
+            });
+
+            return statements.join(' | ');
+        }
+
+        function analyze() {
+            layerOverlay.innerHTML = '';
+            let geoText = "";
+            let pointText = "";
+            let logicText = "";
+
+            // 1. Analyze Each Set Individually
+            const results = {};
+            
+            Object.values(state.sets).forEach(set => {
+                if(set.paths.length === 0) return;
+                
+                const res = analyzeSingleSet(set.paths, W, H);
+                if(!res) return;
+                
+                results[set.id] = res;
+
+                // Set Properties Output
+                const setTypeLabel = res.setType === 'open' ? 'Open' : (res.setType === 'closed' ? 'Closed' : 'Neither');
+                geoText += `### ${set.name}\n`;
+                geoText += `* **Type:** ${setTypeLabel}\n`;
+                geoText += `* **Parts:** ${res.partsCount}\n`;
+                geoText += `* **Diameter:** ${res.diameter} px\n---\n`;
+            });
+
+            // 2. Point Classification
+            if(state.points.length > 0) {
+                state.points.forEach((pt, i) => {
+                    const fx = Math.floor(pt.x);
+                    const fy = Math.floor(pt.y);
+                    const idx = fy * W + fx;
+                    
+                    const pointName = `P${i+1}`;
+                    let currentStatus = `${pointName}`;
+                    let closureSets = [];
+                    let classificationDetails = [];
+                    
+                    Object.keys(results).forEach(sid => {
+                        const res = results[sid];
+                        const name = state.sets[sid].name;
+                        
+                        const isInSet = res.unionMask[idx];
+                        const isOnBoundaryPixel = res.boundaryMask[idx];
+                        const isNearBoundary = isPointNearBoundary(pt.x, pt.y, res.boundaryMask, W, BOUNDARY_PROXIMITY);
+                        
+                        let classification = 'Exterior';
+                        
+                        // New Boundary Logic: If IN the set, use exact pixel. If OUTSIDE, use proximity.
+                        if (isInSet) {
+                            classification = isOnBoundaryPixel ? 'Boundary' : 'Interior';
+                        } else {
+                            if (isOnBoundaryPixel || isNearBoundary) {
+                                classification = 'Boundary';
+                            } else {
+                                classification = 'Exterior';
+                            }
+                        }
+                        
+                        // Build mathematical notation for classification
+                        if (classification === 'Interior') {
+                            classificationDetails.push(`${pointName} ${NOTATION.ELEMENT_OF} ${name}${NOTATION.INTERIOR}`);
+                            closureSets.push(name + NOTATION.CLOSURE);
+                        } else if (classification === 'Boundary') {
+                            classificationDetails.push(`${pointName} ${NOTATION.ELEMENT_OF} ${NOTATION.BOUNDARY}${name}`);
+                            closureSets.push(name + NOTATION.CLOSURE);
+                        } else { // Exterior
+                            classificationDetails.push(`${pointName} ${NOTATION.NOT_ELEMENT_OF} ${name}${NOTATION.CLOSURE}`);
+                        }
+                    });
+
+                    // Summarize closure membership
+                    if (closureSets.length > 0) {
+                        currentStatus += ` ${NOTATION.ELEMENT_OF} ${closureSets.join(" ")}`;
+                    } else {
+                        currentStatus += ` ${NOTATION.NOT_ELEMENT_OF} (All ${NOTATION.CLOSURE}s)`;
+                    }
+
+                    pointText += `${currentStatus}\n`;
+                    pointText += `* ${classificationDetails.join(' | ')}\n`;
+                    
+                    if (pt.r > 0) {
+                        const neighborhoodAnalysis = analyzePointWithNeighborhood(pt, results, W, H);
+                        pointText += `* ${neighborhoodAnalysis}\n`;
+                    }
+                    pointText += `\n`;
+                });
+            }
+
+            // 3. Multi-Set Logic (Grouped by Operator)
+            const ids = Object.keys(results);
+            const logicGroups = {
+                [NOTATION.INTERSECTION]: [], // Intersection (Equal/Not Equal Empty Set)
+                [NOTATION.DIFFERENCE]: [],   // Difference (Equal/Not Equal Empty Set)
+                [NOTATION.SUBSET]: []        // Subset (Subset/Equal)
+            };
+            
+            for(let i=0; i<ids.length; i++){
+                for(let j=i+1; j<ids.length; j++){
+                    const idA = ids[i], idB = ids[j];
+                    const maskA = results[idA].unionMask;
+                    const maskB = results[idB].unionMask;
+                    const nameA = state.sets[idA].name;
+                    const nameB = state.sets[idB].name;
+
+                    let intersectCount = 0;
+                    let onlyACount = 0;
+                    let onlyBCount = 0;
+                    let aInB = true; // A ⊂ B
+                    let bInA = true; // B ⊂ A
+
+                    for(let k=0; k<W*H; k++){
+                        const a = maskA[k] || 0;
+                        const b = maskB[k] || 0;
+                        if(a && b) intersectCount++;
+                        if(a && !b) {
+                            onlyACount++;
+                            aInB = false;
+                        }
+                        if(b && !a) {
+                            onlyBCount++;
+                            bInA = false;
+                        }
+                    }
+                    
+                    // Intersection
+                    if(intersectCount > 0) {
+                        logicGroups[NOTATION.INTERSECTION].push(`${nameA} ${NOTATION.INTERSECTION} ${nameB} ${NOTATION.NOT_EQUAL} ${NOTATION.EMPTY_SET}`);
+                    } else {
+                        logicGroups[NOTATION.INTERSECTION].push(`${nameA} ${NOTATION.INTERSECTION} ${nameB} ${NOTATION.EQUAL} ${NOTATION.EMPTY_SET}`);
+                    }
+
+                    // Difference A \ B
+                    if(onlyACount > 0) {
+                        logicGroups[NOTATION.DIFFERENCE].push(`${nameA} ${NOTATION.DIFFERENCE} ${nameB} ${NOTATION.NOT_EQUAL} ${NOTATION.EMPTY_SET}`);
+                    } else {
+                        logicGroups[NOTATION.DIFFERENCE].push(`${nameA} ${NOTATION.DIFFERENCE} ${nameB} ${NOTATION.EQUAL} ${NOTATION.EMPTY_SET}`);
+                    }
+                    // Difference B \ A
+                    if(onlyBCount > 0) {
+                        logicGroups[NOTATION.DIFFERENCE].push(`${nameB} ${NOTATION.DIFFERENCE} ${nameA} ${NOTATION.NOT_EQUAL} ${NOTATION.EMPTY_SET}`);
+                    } else {
+                        logicGroups[NOTATION.DIFFERENCE].push(`${nameB} ${NOTATION.DIFFERENCE} ${nameA} ${NOTATION.EQUAL} ${NOTATION.EMPTY_SET}`);
+                    }
+                    
+                    // Subset/Equality
+                    if (results[idA].diameter > 0 && aInB) {
+                        if (onlyBCount > 0) {
+                            logicGroups[NOTATION.SUBSET].push(`${nameA} ${NOTATION.SUBSET} ${nameB}`);
+                        } else {
+                            logicGroups[NOTATION.SUBSET].push(`${nameA} ${NOTATION.EQUAL} ${nameB}`);
+                        }
+                    }
+                    if (results[idB].diameter > 0 && bInA && i !== j) {
+                        if (onlyACount > 0) {
+                            logicGroups[NOTATION.SUBSET].push(`${nameB} ${NOTATION.SUBSET} ${nameA}`);
+                        } 
+                        // Equality case covered by A=B above
+                    }
+                }
+            }
+
+            // Assemble final logic output
+            if (logicGroups[NOTATION.INTERSECTION].length > 0) {
+                logicText += `### Intersection (${NOTATION.INTERSECTION})\n`;
+                logicGroups[NOTATION.INTERSECTION].forEach(line => logicText += `* ${line}\n`);
+                logicText += `---\n`;
+            }
+            if (logicGroups[NOTATION.DIFFERENCE].length > 0) {
+                logicText += `### Difference (${NOTATION.DIFFERENCE})\n`;
+                logicGroups[NOTATION.DIFFERENCE].forEach(line => logicText += `* ${line}\n`);
+                logicText += `---\n`;
+            }
+            if (logicGroups[NOTATION.SUBSET].length > 0) {
+                logicText += `### Containment (${NOTATION.SUBSET} or ${NOTATION.EQUAL})\n`;
+                logicGroups[NOTATION.SUBSET].forEach(line => logicText += `* ${line}\n`);
+                logicText += `---\n`;
+            }
+
+
+            document.getElementById('geoResult').textContent = geoText || "No sets drawn.";
+            document.getElementById('pointResult').textContent = pointText || "No points placed.";
+            document.getElementById('logicResult').textContent = logicText || "No interactions.";
+        }
+
+        function exportSVG() {
+            const data = new XMLSerializer().serializeToString(svg);
+            const blob = new Blob([data], {type: 'image/svg+xml;charset=utf-8'});
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url; link.download = 'set_analysis.svg';
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        }
+
+        init();
+    </script>
+</body>
+</html>

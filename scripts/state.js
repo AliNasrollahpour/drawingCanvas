@@ -1,6 +1,7 @@
 import { selectSet, inputName } from './config.js';
 
 // --- STATE ---
+// Export as let so it can be updated by undo/redo
 export let state = {
     sets: {
         'A': { id: 'A', name: 'A', paths: [] }, 
@@ -58,14 +59,14 @@ export function saveHistory() {
 }
 
 export function undo() {
-    if (appState.history.length <= 1) return;
+    if (appState.history.length <= 1) return false;
     appState.future.push(appState.history.pop());
     setState(JSON.parse(JSON.stringify(appState.history[appState.history.length - 1])));
     return true; // Indicate action taken
 }
 
 export function redo() {
-    if (appState.future.length === 0) return;
+    if (appState.future.length === 0) return false;
     const next = appState.future.pop();
     appState.history.push(next);
     setState(JSON.parse(JSON.stringify(next)));
@@ -79,6 +80,6 @@ export function clearAllState() {
 
 export function updateUI() {
     const s = state.sets[appState.activeSetId];
-    inputName.value = s.name;
-    selectSet.value = s.id;
+    if (inputName) inputName.value = s.name;
+    if (selectSet) selectSet.value = s.id;
 }

@@ -1,10 +1,18 @@
-// Located in: /main.js
-
 import { state, saveHistory, undo, redo, updateUI } from './scripts/state.js';
 import { render } from './scripts/render.js';
-import { setupInteraction, exportSVG } from './scripts/interaction.js'; 
-import { selectSet } from './scripts/config.js';
+import { setupInteraction } from './scripts/interaction.js'; 
+import { selectSet, svg } from './scripts/config.js';
 import { analyze } from './scripts/analysis.js'; 
+
+// --- EXPORT FUNCTION ---
+function exportSVG() {
+    const data = new XMLSerializer().serializeToString(svg);
+    const blob = new Blob([data], {type: 'image/svg+xml;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url; link.download = 'set_analysis.svg';
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+}
 
 // --- INITIALIZATION ---
 function init() {
@@ -15,15 +23,13 @@ function init() {
         selectSet.appendChild(opt);
     });
     
-    // Wire up undo/redo global functions
+    // Wire up undo/redo and analysis global functions
     window.undo = () => { if (undo()) { updateUI(); render(); } };
     window.redo = () => { if (redo()) { updateUI(); render(); } };
+    window.analyze = analyze; 
+    window.exportSVG = exportSVG; 
 
-    // Expose Analyze and Export SVG functions to the global window object 
-    window.analyze = analyze;
-    window.exportSVG = exportSVG;
-
-    // Set initial UI/State
+    // Initialize Interactions and UI
     setupInteraction();
     updateUI();
     saveHistory();

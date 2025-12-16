@@ -1,9 +1,8 @@
-import { state, NOTATION } from './state.js';
-import { W, H, BOUNDARY_PROXIMITY, layerOverlay } from './config.js';
+import { state } from './state.js';
+import { W, H, BOUNDARY_PROXIMITY, layerOverlay, NOTATION } from './config.js';
 
 // --- GEOMETRIC HELPERS ---
 
-// Helper function for boundary check around a point
 function isPointNearBoundary(px, py, boundaryMask, width, distance) {
     for (let dy = -distance; dy <= distance; dy++) {
         for (let dx = -distance; dx <= distance; dx++) {
@@ -18,7 +17,6 @@ function isPointNearBoundary(px, py, boundaryMask, width, distance) {
     return false;
 }
 
-// Helper function for diameter calculation (Convex Hull + Rotating Calipers)
 function calculateDiameter(mask, width, height) {
     const pts = [];
     for (let y = 0; y < height; y++) {
@@ -55,22 +53,20 @@ function calculateDiameter(mask, width, height) {
         hull.push(p);
     }
 
-    hull.pop(); // last point is duplicate
+    hull.pop(); 
 
     // --- Rotating Calipers for Diameter ---
     let maxDistSq = 0;
+    let j = 1;
 
     const distSq = (a, b) => {
         const dx = a[0] - b[0];
         const dy = a[1] - b[1];
         return dx * dx + dy * dy;
     };
-    
-    // Find antipodal pairs
-    for (let i = 0, j = 1; i < hull.length; i++) {
-        const next = (i + 1) % hull.length;
 
-        // while j-i-1 has smaller area with the next edge than j-i
+    for (let i = 0; i < hull.length; i++) {
+        const next = (i + 1) % hull.length;
         while (true) {
             const nextJ = (j + 1) % hull.length;
             const crossVal =
@@ -80,7 +76,6 @@ function calculateDiameter(mask, width, height) {
             if (crossVal > 0) j = nextJ;
             else break;
         }
-
         maxDistSq = Math.max(maxDistSq, distSq(hull[i], hull[j]));
     }
 
@@ -102,7 +97,6 @@ function analyzeSingleSet(setPaths, width, height) {
         ctx.fillStyle = 'black'; ctx.fillRect(0,0,width,height);
         const p = new Path2D(pData.d);
         
-        // Rasterize the shape
         if (pData.d.trim().toUpperCase().endsWith('Z')) { 
             ctx.fillStyle = 'white'; ctx.fill(p); 
         } else {
@@ -184,7 +178,7 @@ function analyzeSingleSet(setPaths, width, height) {
         }
     }
     
-    // Part Type Classification (to determine if the overall set is open, closed, or neither)
+    // Part Type Classification
     const partResults = [];
     for (let pi = 0; pi < partMasks.length; pi++) {
         const partMask = partMasks[pi];
@@ -213,7 +207,7 @@ function analyzeSingleSet(setPaths, width, height) {
     const unique = Array.from(new Set(partResults));
     if (unique.length === 1) finalSetType = unique[0];
 
-    // Final Union Mask based on Set Type (open sets exclude boundary)
+    // Final Union Mask
     let unionMask = new Uint8Array(width * height);
     if (finalSetType === 'open') {
         for (let k = 0; k < width * height; k++) {
@@ -227,7 +221,7 @@ function analyzeSingleSet(setPaths, width, height) {
     
     const diameter = calculateDiameter(unionMask, width, height);
 
-    // Boundary Overlay for visualization
+    // Boundary Overlay
     layerOverlay.innerHTML = '';
     let boundaryPathData = [];
     for (let y = 0; y < height; y++) {
@@ -293,14 +287,14 @@ function analyzePointWithNeighborhood(pt, results, W, H) {
 
         const name = state.sets[sid].name;
         const insideCount = interaction.inside;
-        const outsideCount = interaction.outside.totalCheck - interaction.inside; // Fix: outside is total - inside
+        const outsideCount = interaction.outside;
         
         const pointName = `P${state.points.findIndex(p => p === pt) + 1}`;
         const neighborhood = `${NOTATION.NEIGHBORHOOD}(${pointName})`;
         
-        if (insideCount > 0 && interaction.outside === 0) { // Check only inside the set's pixels
+        if (insideCount > 0 && outsideCount === 0) {
             statements.push(`${neighborhood} ${NOTATION.SUBSET} ${name}`);
-        } else if (insideCount > 0 && interaction.outside > 0) { // Check both inside and outside the set's pixels
+        } else if (insideCount > 0 && outsideCount > 0) {
             statements.push(`${neighborhood} ${NOTATION.INTERSECTION} ${name} ${NOTATION.NOT_EQUAL} ${NOTATION.EMPTY_SET}`);
         } else {
             statements.push(`${neighborhood} ${NOTATION.INTERSECTION} ${name} ${NOTATION.EQUAL} ${NOTATION.EMPTY_SET}`);
@@ -309,8 +303,6 @@ function analyzePointWithNeighborhood(pt, results, W, H) {
 
     return statements.join(' | ');
 }
-
-// --- MAIN ANALYSIS ENTRY POINT (Exported for HTML calls) ---
 
 export function analyze() {
     layerOverlay.innerHTML = '';
@@ -329,7 +321,6 @@ export function analyze() {
         
         results[set.id] = res;
 
-        // Set Properties Output
         const setTypeLabel = res.setType === 'open' ? 'Open' : (res.setType === 'closed' ? 'Closed' : 'Neither');
         geoText += `### ${set.name}\n`;
         geoText += `* **Type:** ${setTypeLabel}\n`;
@@ -368,20 +359,18 @@ export function analyze() {
                     }
                 }
                 
-                // Build mathematical notation for classification
                 if (classification === 'Interior') {
                     classificationDetails.push(`${pointName} ${NOTATION.ELEMENT_OF} ${name}${NOTATION.INTERIOR}`);
                     closureSets.push(name + NOTATION.CLOSURE);
                 } else if (classification === 'Boundary') {
                     classificationDetails.push(`${pointName} ${NOTATION.ELEMENT_OF} ${NOTATION.BOUNDARY}${name}`);
                     closureSets.push(name + NOTATION.CLOSURE);
-                } else { // Exterior
+                } else { 
                     classificationDetails.push(`${pointName} ${NOTATION.NOT_ELEMENT_OF} ${name}${NOTATION.CLOSURE}`);
                 }
             });
 
             let currentStatus = `${pointName}`;
-            // Summarize closure membership
             if (closureSets.length > 0) {
                 currentStatus += ` ${NOTATION.ELEMENT_OF} ${closureSets.join(" ")}`;
             } else {
@@ -408,9 +397,7 @@ export function analyze() {
     };
     
     for(let i=0; i<ids.length; i++){
-        for(let j=i; j<ids.length; j++){ // Use j=i for set-to-itself comparison for difference logic, though it won't impact subset/intersection
-            if (i === j) continue; // Skip redundant comparison
-
+        for(let j=i+1; j<ids.length; j++){ 
             const idA = ids[i], idB = ids[j];
             const maskA = results[idA].unionMask;
             const maskB = results[idB].unionMask;
@@ -420,8 +407,8 @@ export function analyze() {
             let intersectCount = 0;
             let onlyACount = 0;
             let onlyBCount = 0;
-            let aInB = true; // A ⊂ B
-            let bInA = true; // B ⊂ A
+            let aInB = true; 
+            let bInA = true; 
 
             for(let k=0; k<W*H; k++){
                 const a = maskA[k] || 0;
@@ -458,26 +445,21 @@ export function analyze() {
             }
             
             // Subset/Equality
-            const diamA = results[idA].diameter;
-            const diamB = results[idB].diameter;
-            
-            if (diamA > 0 && aInB) {
+            if (results[idA].diameter > 0 && aInB) {
                 if (onlyBCount > 0) {
                     logicGroups[NOTATION.SUBSET].push(`${nameA} ${NOTATION.SUBSET} ${nameB}`);
                 } else {
                     logicGroups[NOTATION.SUBSET].push(`${nameA} ${NOTATION.EQUAL} ${nameB}`);
                 }
             }
-            if (diamB > 0 && bInA) {
+            if (results[idB].diameter > 0 && bInA) {
                 if (onlyACount > 0) {
                     logicGroups[NOTATION.SUBSET].push(`${nameB} ${NOTATION.SUBSET} ${nameA}`);
                 } 
-                // Equality case is already covered by the A=B above
             }
         }
     }
 
-    // Assemble final logic output
     if (logicGroups[NOTATION.INTERSECTION].length > 0) {
         logicText += `### Intersection (${NOTATION.INTERSECTION})\n`;
         logicGroups[NOTATION.INTERSECTION].forEach(line => logicText += `* ${line}\n`);
@@ -493,7 +475,6 @@ export function analyze() {
         logicGroups[NOTATION.SUBSET].forEach(line => logicText += `* ${line}\n`);
         logicText += `---\n`;
     }
-
 
     document.getElementById('geoResult').textContent = geoText || "No sets drawn.";
     document.getElementById('pointResult').textContent = pointText || "No points placed.";

@@ -1,7 +1,6 @@
-import { state, appState } from './state.js';
+import { state } from './state.js';
 import { CONFIG, layerSets, layerPoints } from './config.js';
 
-// --- RENDERING ---
 export function render() {
     layerSets.innerHTML = '';
     Object.values(state.sets).forEach(set => {

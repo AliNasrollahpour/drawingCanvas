@@ -1,9 +1,6 @@
-// Located in: /scripts/interaction.js
-
 import { appState, state, saveHistory, updateUI, clearAllState } from './state.js';
 import { render } from './render.js';
 import { svg, CLOSING_DISTANCE, CONFIG, layerPreview, selectSet, inputName, layerOverlay } from './config.js';
-import { analyze } from './analysis.js'; // Corrected path/extension
 
 // --- INTERACTION UTILS ---
 function getLoc(e) {
@@ -38,24 +35,28 @@ function handleMouseMove(e) {
     if (!appState.isDrawing) return;
     const p = getLoc(e);
     if (appState.mode === 'draw') {
-        // Drawing logic
         appState.currentPath.push(p);
-        const pathData = pointsToPath(appState.currentPath, appState.penType === 'closed');
+        const start = appState.currentPath[0];
+        const distance = Math.hypot(p.x - start.x, p.y - start.y);
+        const isClosed = distance < CLOSING_DISTANCE; // Although visual feedback uses logic, actual closing happens on MouseUp
+        
+        // Visual feedback
+        const pathData = pointsToPath(appState.currentPath, isClosed);
         
         layerPreview.innerHTML = '';
         const previewPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         previewPath.setAttribute('d', pathData);
         previewPath.setAttribute('stroke', CONFIG.strokeColors[appState.activeSetId] || 'black');
         previewPath.setAttribute('stroke-width', '2');
-        previewPath.setAttribute('fill', appState.penType === 'closed' ? CONFIG.fillColors[appState.activeSetId] : 'none');
+        previewPath.setAttribute('fill', isClosed ? CONFIG.fillColors[appState.activeSetId] : 'none');
+        if (appState.penType === 'open') {
+             previewPath.setAttribute('stroke-dasharray', '8, 4');
+        }
         layerPreview.appendChild(previewPath);
 
     } else if (appState.mode === 'point' && appState.activePointIndex !== -1) {
-        // Point radius logic
-        const pt = state.points[appState.activePointIndex];
-        const dx = p.x - appState.dragStart.x;
-        const dy = p.y - appState.dragStart.y;
-        pt.r = Math.max(0, Math.sqrt(dx * dx + dy * dy));
+        const start = appState.dragStart;
+        state.points[appState.activePointIndex].r = Math.hypot(p.x - start.x, p.y - start.y);
         render();
     }
 }
@@ -65,27 +66,36 @@ function handleMouseUp(e) {
     appState.isDrawing = false;
     layerPreview.innerHTML = '';
 
-    if (appState.mode === 'draw' && appState.currentPath.length > 1) {
-        const pathData = pointsToPath(appState.currentPath, appState.penType === 'closed');
-        state.sets[appState.activeSetId].paths.push({ 
-            d: pathData, 
-            type: appState.penType, 
-            color: CONFIG.strokeColors[appState.activeSetId] 
-        });
-        saveHistory();
-        render();
+    if (appState.mode === 'draw') {
+        if (appState.currentPath.length > 2) {
+            const start = appState.currentPath[0];
+            const end = appState.currentPath[appState.currentPath.length - 1];
+            const distance = Math.hypot(end.x - start.x, end.y - start.y);
+            const isClosed = distance < CLOSING_DISTANCE;
+            
+            const pathData = pointsToPath(appState.currentPath, isClosed);
+            state.sets[appState.activeSetId].paths.push({ 
+                d: pathData, 
+                type: appState.penType 
+            });
+            saveHistory();
+            render();
+        }
     } else if (appState.mode === 'point') {
         appState.activePointIndex = -1;
         saveHistory();
-        render();
+        render(); // Ensure text updates if needed
     }
 }
 
-// --- TOOLBAR HANDLERS ---
+// --- UI EXPORTS (Attached to Window for HTML Buttons) ---
 
 export function setMode(mode) {
     appState.mode = mode;
-    updateUI();
+    document.getElementById('modeDraw').className = mode === 'draw' ? 'active' : '';
+    document.getElementById('modePoint').className = mode === 'point' ? 'active' : '';
+    document.getElementById('setControls').style.opacity = mode === 'draw' ? '1' : '0.5';
+    document.getElementById('penTypeControls').style.opacity = mode === 'draw' ? '1' : '0.5';
 }
 
 export function setPenType(type) {
@@ -112,22 +122,13 @@ export function clearAll() {
     layerOverlay.innerHTML = '';
 }
 
-export function exportSVG() {
-    const data = new XMLSerializer().serializeToString(svg);
-    const blob = new Blob([data], {type: 'image/svg+xml;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url; link.download = 'set_analysis.svg';
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
-}
-
-// --- INITIALIZE INTERACTION ---
+// --- INITIALIZE ---
 export function setupInteraction() {
     svg.addEventListener('mousedown', handleMouseDown);
     svg.addEventListener('mousemove', handleMouseMove);
     svg.addEventListener('mouseup', handleMouseUp);
     
-    // Wire up global functions used in HTML (non-module functions)
+    // Bind to window so HTML onClick works
     window.setMode = setMode;
     window.setPenType = setPenType;
     window.changeActiveSet = changeActiveSet;
