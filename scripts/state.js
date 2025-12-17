@@ -3,7 +3,7 @@ import { selectSet, inputName } from './config.js';
 // --- STATE ---
 export let state = {
     sets: {
-        'A': { id: 'A', name: 'A', paths: [] }, 
+        'A': { id: 'A', name: 'A', paths: [] },
         'B': { id: 'B', name: 'B', paths: [] },
         'C': { id: 'C', name: 'C', paths: [] },
         'D': { id: 'D', name: 'D', paths: [] },
@@ -30,12 +30,12 @@ export let state = {
         'Y': { id: 'Y', name: 'Y', paths: [] },
         'Z': { id: 'Z', name: 'Z', paths: [] }
     },
-    points: [] 
+    points: []
 };
 
 export let appState = {
-    mode: 'draw', 
-    penType: 'closed', 
+    mode: 'draw',
+    penType: 'closed',
     activeSetId: 'A',
     history: [],
     future: [],

@@ -3,69 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Robust Set Theory Analysis</title>
-    <link rel="stylesheet" href="style.css"> 
+    <title>SetTheoryLab - Robust Set Theory Analysis</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="theme-light">
+    <div class="app-container">
+        <!-- Left Sidebar - Controls -->
+        <aside class="sidebar-left">
+            <div class="brand">SetTheoryLab</div>
+            
+            <!-- Mode Selection -->
+            <div class="group">
+                <label>Mode</label>
+                <div class="btn-stack">
+                    <button id="modeDraw" class="active">Draw Set</button>
+                    <button id="modePoint">Place Points</button>
+                </div>
+            </div>
 
-    <div class="toolbar">
-        <div class="group">
-            <label>Mode:</label>
-            <button id="modeDraw" class="active" onclick="setMode('draw')">Draw Set</button>
-            <button id="modePoint" onclick="setMode('point')">Place Points</button>
-        </div>
-        <div class="group" id="penTypeControls">
-            <label>Pen Type:</label>
-            <select id="penSelect" onchange="setPenType(this.value)">
-                <option value='closed'>Closed Pen</option>
-                <option value='open'>Open Pen</option>
-            </select>
-        </div>
-        <div class="group" id="setControls">
-            <label>Active Set:</label>
-            <select id="activeSetSelect" onchange="changeActiveSet()"></select>
-            <input type="text" id="setNameInput" placeholder="Set Name" oninput="updateSetName()" style="width: 100px;">
-        </div>
-        <div class="group">
-            <button onclick="undo()">↶ Undo</button>
-            <button onclick="redo()">↷ Redo</button>
-        </div>
-        <div class="group">
-            <button onclick="clearAll()" style="color:red">Clear All</button>
-        </div>
-        <div class="group">
-            <button onclick="analyze()">⚡ Analyze</button>
-            <button onclick="exportSVG()">⬇ Export SVG</button>
-        </div>
+            <!-- Set Selection -->
+            <div class="group">
+                <label>Active Set</label>
+                <select id="activeSetSelect"></select>
+                <div class="input-row">
+                    <input type="text" id="setNameInput" placeholder="Set Name">
+                </div>
+            </div>
+
+            <!-- Pen Type -->
+            <div class="group">
+                <label>Pen Type</label>
+                <select id="penSelect">
+                    <option value='closed'>Closed Pen</option>
+                    <option value='open'>Open Pen</option>
+                </select>
+            </div>
+
+            <!-- History Controls -->
+            <div class="group">
+                <label>History</label>
+                <div class="btn-row">
+                    <button id="undoBtn">Undo</button>
+                    <button id="redoBtn">Redo</button>
+                </div>
+                <button id="clearBtn" class="btn-danger">Clear All</button>
+            </div>
+
+            <!-- Layer Manager -->
+            <div class="layer-manager card">
+                <div class="layer-header">
+                    <h3>Layers <span id="layerCount">(26)</span></h3>
+                </div>
+                <div id="layerList" class="scroll-area">
+                    <!-- Layers will be populated by JavaScript -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Canvas Area -->
+        <main class="canvas-area">
+            <div class="canvas-header">
+                <button id="analyzeBtn" class="btn-primary">Analyze</button>
+            </div>
+            <div class="canvas-container">
+                <svg id="mainSvg" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <pattern id="gridPattern" width="40" height="40" patternUnits="userSpaceOnUse">
+                            <path d="M 40 0 L 0 0 0 40" fill="none" stroke-width="1"/>
+                        </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#gridPattern)" />
+                    <g id="layerSets"></g>
+                    <g id="layerPoints"></g>
+                    <g id="layerPreview"></g>
+                    <g id="layerOverlay"></g>
+                </svg>
+            </div>
+        </main>
+
+        <!-- Right Sidebar - Analysis -->
+        <aside class="sidebar-right">
+            <div id="analysisPanel" class="scroll-area">
+                <div class="card analysis-card">
+                    <h3>Set Properties</h3>
+                    <pre id="geoResult">Click Analyze to see results...</pre>
+                </div>
+                <div class="card analysis-card">
+                    <h3>Point Classification</h3>
+                    <pre id="pointResult">Place points and click Analyze...</pre>
+                </div>
+                <div class="card analysis-card">
+                    <h3>Set Theory & Logic</h3>
+                    <pre id="logicResult">Click Analyze to see results...</pre>
+                </div>
+            </div>
+
+            <div class="export-footer">
+                <select id="exportType">
+                    <option value="svg">Export SVG</option>
+                    <option value="json">Save Data (JSON)</option>
+                </select>
+                <button id="exportBtn" class="btn-action">Export</button>
+            </div>
+        </aside>
     </div>
 
-    <svg id="mainSvg" viewBox="0 0 1280 720" width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-            <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
-                <path d="M0,0 L10,5 L0,10" style="fill: #666;" />
-            </marker>
-        </defs>
-        <g id="layerSets"></g>
-        <g id="layerPoints"></g>
-        <g id="layerPreview"></g>
-        <g id="layerOverlay"></g>
-    </svg>
-
-    <div id="analysisPanel">
-        <div class="card">
-            <h3>Set Properties</h3>
-            <pre id="geoResult">Click Analyze to see results...</pre>
-        </div>
-        <div class="card">
-            <h3>Point Classification</h3>
-            <pre id="pointResult">Place points and click Analyze...</pre>
-        </div>
-        <div class="card">
-            <h3>Set Theory & Logic</h3>
-            <pre id="logicResult">Click Analyze to see results...</pre>
-        </div>
+    <!-- Theme Toggle Button -->
+    <div class="side-controls">
+        <button id="themeToggle" title="Toggle Theme">🌓</button>
     </div>
 
-    <script src="./main.js" type="module"></script>
+    <!-- Toast Container -->
+    <div id="toastContainer"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script type="module" src="./main.js"></script>
 </body>
 </html>

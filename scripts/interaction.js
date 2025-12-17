@@ -2,6 +2,8 @@ import { appState, state, saveHistory, updateUI, clearAllState } from './state.j
 import { render } from './render.js';
 import { svg, CLOSING_DISTANCE, CONFIG, layerPreview, selectSet, inputName, layerOverlay } from './config.js';
 
+console.log('interaction.js loaded, selectSet:', selectSet);
+
 // --- INTERACTION UTILS ---
 function getLoc(e) {
     const pt = svg.createSVGPoint();
@@ -109,6 +111,7 @@ function renderCandidateInPreview(candidateStrokes, isExtending = false) {
 
 // --- MOUSE HANDLERS ---
 function handleMouseDown(e) {
+    console.log('Mouse down on canvas');
     const p = getLoc(e);
     appState.isDrawing = true;
     
@@ -121,17 +124,13 @@ function handleMouseDown(e) {
             appState.extendingFromEnd = nearCandidate.closestEnd;
             
             // CRITICAL FIX: Always start EXACTLY at the candidate endpoint
-            // This eliminates the visible gap
             if (nearCandidate.closestEnd === 'start') {
                 appState.currentPath = [{...appState.candidate.startPoint}];
-                console.log("Starting extension from candidate START point");
             } else {
                 appState.currentPath = [{...appState.candidate.endPoint}];
-                console.log("Starting extension from candidate END point");
             }
             
             // Add the current mouse position as the second point
-            // This ensures smooth drawing from the snapped starting point
             appState.currentPath.push(p);
             
         } else {
@@ -143,7 +142,6 @@ function handleMouseDown(e) {
             if (appState.candidate.exists) {
                 appState.candidate.exists = false;
                 appState.candidate.strokes = [];
-                console.log("Candidate discarded: new stroke started away from ends");
                 render();
             }
         }
@@ -379,7 +377,6 @@ function handleMouseUp(e) {
                         ]
                     });
                     
-                    console.log("Candidate completed and saved as filled closed set");
                     saveHistory();
                     
                     // Clear candidate
@@ -391,16 +388,10 @@ function handleMouseUp(e) {
                     
                     // Update candidate endpoints based on extending direction
                     if (appState.extendingFromEnd === 'start') {
-                        // Extended from start, so start point is new start (the end of new stroke)
                         appState.candidate.startPoint = {x: end.x, y: end.y};
-                        // End point remains the same
                     } else {
-                        // Extended from end, so end point is new end (the end of new stroke)
                         appState.candidate.endPoint = {x: end.x, y: end.y};
-                        // Start point remains the same
                     }
-                    
-                    console.log("Candidate extended with new stroke");
                 }
                 
                 appState.extendingFromEnd = null;
@@ -413,7 +404,7 @@ function handleMouseUp(e) {
                 const isClosed = shouldSnap;
                 
                 if (isClosed && lastSnapState && lastSnapState.snapPoint) {
-                    // CRITICAL FIX: Use the SAME snapped point that was shown in preview
+                    // Use the SAME snapped point that was shown in preview
                     appState.currentPath[appState.currentPath.length - 1] = lastSnapState.snapPoint;
                     
                     // Regular closed stroke - save it as single stroke
@@ -439,7 +430,6 @@ function handleMouseUp(e) {
                         startPoint: { x: start.x, y: start.y },
                         endPoint: { x: end.x, y: end.y }
                     };
-                    console.log("Stroke saved as candidate (open)");
                 }
             }
         }
@@ -469,8 +459,6 @@ export function setMode(mode) {
     appState.mode = mode;
     document.getElementById('modeDraw').className = mode === 'draw' ? 'active' : '';
     document.getElementById('modePoint').className = mode === 'point' ? 'active' : '';
-    document.getElementById('setControls').style.opacity = mode === 'draw' ? '1' : '0.5';
-    document.getElementById('penTypeControls').style.opacity = mode === 'draw' ? '1' : '0.5';
     // Clear candidate when switching modes
     appState.candidate.exists = false;
     appState.candidate.strokes = [];
@@ -484,45 +472,61 @@ export function setPenType(type) {
 }
 
 export function changeActiveSet() { 
-    appState.activeSetId = selectSet.value; 
-    // Clear candidate when switching sets
-    appState.candidate.exists = false;
-    appState.candidate.strokes = [];
-    appState.extendingFromEnd = null;
-    appState.lastSnapState = null;
-    updateUI(); 
-    render();
+    if (selectSet) {
+        appState.activeSetId = selectSet.value; 
+        // Clear candidate when switching sets
+        appState.candidate.exists = false;
+        appState.candidate.strokes = [];
+        appState.extendingFromEnd = null;
+        appState.lastSnapState = null;
+        updateUI(); 
+        render();
+    }
 }
 
 export function updateSetName() { 
-    const newName = inputName.value.trim().toUpperCase();
-    state.sets[appState.activeSetId].name = newName || appState.activeSetId;
+    if (inputName) {
+        const newName = inputName.value.trim().toUpperCase();
+        state.sets[appState.activeSetId].name = newName || appState.activeSetId;
+        updateUI();
+    }
 }
 
 export function clearAll() {
-    clearAllState(); 
-    appState.candidate.exists = false;
-    appState.candidate.strokes = [];
-    appState.extendingFromEnd = null;
-    appState.lastSnapState = null;
-    saveHistory(); 
-    render();
-    document.getElementById('geoResult').textContent = 'Cleared.';
-    document.getElementById('pointResult').textContent = 'Cleared.';
-    document.getElementById('logicResult').textContent = 'Cleared.';
-    layerOverlay.innerHTML = '';
+    if (confirm("Are you sure you want to clear everything? This cannot be undone.")) {
+        clearAllState(); 
+        appState.candidate.exists = false;
+        appState.candidate.strokes = [];
+        appState.extendingFromEnd = null;
+        appState.lastSnapState = null;
+        saveHistory(); 
+        render();
+        
+        const geoResult = document.getElementById('geoResult');
+        const pointResult = document.getElementById('pointResult');
+        const logicResult = document.getElementById('logicResult');
+        
+        if (geoResult) geoResult.textContent = 'Cleared.';
+        if (pointResult) pointResult.textContent = 'Cleared.';
+        if (logicResult) logicResult.textContent = 'Cleared.';
+        
+        if (layerOverlay) layerOverlay.innerHTML = '';
+    }
 }
 
 // --- INITIALIZE ---
 export function setupInteraction() {
-    svg.addEventListener('mousedown', handleMouseDown);
-    svg.addEventListener('mousemove', handleMouseMove);
-    svg.addEventListener('mouseup', handleMouseUp);
+    console.log('Setting up interaction, svg:', svg);
+    if (svg) {
+        svg.addEventListener('mousedown', handleMouseDown);
+        svg.addEventListener('mousemove', handleMouseMove);
+        svg.addEventListener('mouseup', handleMouseUp);
+    } else {
+        console.error('SVG element not found for interaction setup');
+    }
     
-    // Bind to window so HTML onClick works
-    window.setMode = setMode;
-    window.setPenType = setPenType;
-    window.changeActiveSet = changeActiveSet;
-    window.updateSetName = updateSetName;
-    window.clearAll = clearAll;
+    // Initialize pen select
+    if (penSelect) {
+        penSelect.value = appState.penType;
+    }
 }
