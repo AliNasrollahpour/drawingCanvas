@@ -50,13 +50,19 @@
                 <button id="clearBtn" class="btn-danger">Clear All</button>
             </div>
 
-            <!-- Layer Manager -->
-            <div class="layer-manager card">
-                <div class="layer-header">
-                    <h3>Layers <span id="layerCount">(26)</span></h3>
+            <div class="group">
+                <!-- Theme Toggle Button -->
+                <div class="side-controls">
+                    <button id="themeToggle" title="Toggle Theme">🌓</button>
                 </div>
-                <div id="layerList" class="scroll-area">
-                    <!-- Layers will be populated by JavaScript -->
+                
+                <!-- export Manager -->
+                <div class="export-footer">
+                    <select id="exportType">
+                        <option value="svg">Export SVG</option>
+                        <option value="json">Save Data (JSON)</option>
+                    </select>
+                    <button id="exportBtn" class="btn-action">Export</button>
                 </div>
             </div>
         </aside>
@@ -99,19 +105,7 @@
                 </div>
             </div>
 
-            <div class="export-footer">
-                <select id="exportType">
-                    <option value="svg">Export SVG</option>
-                    <option value="json">Save Data (JSON)</option>
-                </select>
-                <button id="exportBtn" class="btn-action">Export</button>
-            </div>
         </aside>
-    </div>
-
-    <!-- Theme Toggle Button -->
-    <div class="side-controls">
-        <button id="themeToggle" title="Toggle Theme">🌓</button>
     </div>
 
     <!-- Toast Container -->

@@ -119,10 +119,8 @@ function setupEventListeners() {
     const clearBtn = document.getElementById('clearBtn');
     if (clearBtn) {
         clearBtn.addEventListener('click', () => {
-            if (confirm("Are you sure you want to clear everything? This cannot be undone.")) {
-                clearAll();
-                showToast('All cleared successfully', 'success');
-            }
+            clearAll();
+            showToast('All cleared successfully', 'success');
         });
     }
     
@@ -243,7 +241,24 @@ function init() {
     window.updateSetName = updateSetName;
     window.clearAll = () => {
         if (confirm("Are you sure you want to clear everything? This cannot be undone.")) {
-            clearAll();
+            // First clear all sets and points
+            Object.keys(state.sets).forEach(key => {
+                state.sets[key].paths = [];
+            });
+            state.points = [];
+            
+            // Clear analysis results
+            document.getElementById('geoResult').textContent = 'Click Analyze to see results...';
+            document.getElementById('pointResult').textContent = 'Place points and click Analyze...';
+            document.getElementById('logicResult').textContent = 'Click Analyze to see results...';
+            
+            // Clear overlay
+            const layerOverlay = document.getElementById('layerOverlay');
+            if (layerOverlay) layerOverlay.innerHTML = '';
+            
+            // Update UI and render
+            render();
+            saveHistory();
             showToast('All cleared successfully', 'success');
         }
     };

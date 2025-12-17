@@ -493,25 +493,24 @@ export function updateSetName() {
 }
 
 export function clearAll() {
-    if (confirm("Are you sure you want to clear everything? This cannot be undone.")) {
-        clearAllState(); 
-        appState.candidate.exists = false;
-        appState.candidate.strokes = [];
-        appState.extendingFromEnd = null;
-        appState.lastSnapState = null;
-        saveHistory(); 
-        render();
-        
-        const geoResult = document.getElementById('geoResult');
-        const pointResult = document.getElementById('pointResult');
-        const logicResult = document.getElementById('logicResult');
-        
-        if (geoResult) geoResult.textContent = 'Cleared.';
-        if (pointResult) pointResult.textContent = 'Cleared.';
-        if (logicResult) logicResult.textContent = 'Cleared.';
-        
-        if (layerOverlay) layerOverlay.innerHTML = '';
-    }
+    // Just clear the state - confirmation handled by caller
+    clearAllState(); 
+    appState.candidate.exists = false;
+    appState.candidate.strokes = [];
+    appState.extendingFromEnd = null;
+    appState.lastSnapState = null;
+    saveHistory(); 
+    render();
+    
+    const geoResult = document.getElementById('geoResult');
+    const pointResult = document.getElementById('pointResult');
+    const logicResult = document.getElementById('logicResult');
+    
+    if (geoResult) geoResult.textContent = 'Cleared.';
+    if (pointResult) pointResult.textContent = 'Cleared.';
+    if (logicResult) logicResult.textContent = 'Cleared.';
+    
+    if (layerOverlay) layerOverlay.innerHTML = '';
 }
 
 // --- INITIALIZE ---
