@@ -34,26 +34,55 @@ function handleMouseDown(e) {
 function handleMouseMove(e) {
     if (!appState.isDrawing) return;
     const p = getLoc(e);
+    
     if (appState.mode === 'draw') {
+        // Always add the current point to the path
         appState.currentPath.push(p);
-        const start = appState.currentPath[0];
-        const distance = Math.hypot(p.x - start.x, p.y - start.y);
-        const isClosed = distance < CLOSING_DISTANCE; // Although visual feedback uses logic, actual closing happens on MouseUp
         
-        // Visual feedback
-        const pathData = pointsToPath(appState.currentPath, isClosed);
+        // Create preview path WITHOUT automatic closing
+        const pathData = pointsToPath(appState.currentPath, false); // Always open in preview
         
         layerPreview.innerHTML = '';
         const previewPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         previewPath.setAttribute('d', pathData);
         previewPath.setAttribute('stroke', CONFIG.strokeColors[appState.activeSetId] || 'black');
         previewPath.setAttribute('stroke-width', '2');
-        previewPath.setAttribute('fill', isClosed ? CONFIG.fillColors[appState.activeSetId] : 'none');
+        previewPath.setAttribute('fill', 'none'); // No fill in preview
+        
         if (appState.penType === 'open') {
-             previewPath.setAttribute('stroke-dasharray', '8, 4');
+            previewPath.setAttribute('stroke-dasharray', '8, 4');
         }
+        
+        // Show visual feedback if close to completing a loop
+        if (appState.currentPath.length > 2) {
+            const start = appState.currentPath[0];
+            const distance = Math.hypot(p.x - start.x, p.y - start.y);
+            
+            if (distance < CLOSING_DISTANCE * 3) { // Slightly larger radius for visual feedback
+                // Draw a circle at the start point to show potential closing
+                const startCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                startCircle.setAttribute('cx', start.x);
+                startCircle.setAttribute('cy', start.y);
+                startCircle.setAttribute('r', 3);
+                startCircle.setAttribute('fill', 'rgba(0, 200, 0, 0.5)');
+                layerPreview.appendChild(startCircle);
+                
+                // If very close, draw a connecting line
+                if (distance < CLOSING_DISTANCE) {
+                    const connectLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    connectLine.setAttribute('x1', p.x);
+                    connectLine.setAttribute('y1', p.y);
+                    connectLine.setAttribute('x2', start.x);
+                    connectLine.setAttribute('y2', start.y);
+                    connectLine.setAttribute('stroke', 'rgba(0, 200, 0, 0.7)');
+                    connectLine.setAttribute('stroke-dasharray', '3,3');
+                    layerPreview.appendChild(connectLine);
+                }
+            }
+        }
+        
         layerPreview.appendChild(previewPath);
-
+        
     } else if (appState.mode === 'point' && appState.activePointIndex !== -1) {
         const start = appState.dragStart;
         state.points[appState.activePointIndex].r = Math.hypot(p.x - start.x, p.y - start.y);
@@ -64,27 +93,37 @@ function handleMouseMove(e) {
 function handleMouseUp(e) {
     if (!appState.isDrawing) return;
     appState.isDrawing = false;
-    layerPreview.innerHTML = '';
-
+    
     if (appState.mode === 'draw') {
+        // Check if we should save the path or discard it
         if (appState.currentPath.length > 2) {
             const start = appState.currentPath[0];
             const end = appState.currentPath[appState.currentPath.length - 1];
             const distance = Math.hypot(end.x - start.x, end.y - start.y);
             const isClosed = distance < CLOSING_DISTANCE;
             
-            const pathData = pointsToPath(appState.currentPath, isClosed);
-            state.sets[appState.activeSetId].paths.push({ 
-                d: pathData, 
-                type: appState.penType 
-            });
-            saveHistory();
-            render();
+            // Save ONLY if it's a closed loop (regardless of pen type)
+            if (isClosed) {
+                const pathData = pointsToPath(appState.currentPath, true); // Always close with 'Z'
+                state.sets[appState.activeSetId].paths.push({ 
+                    d: pathData, 
+                    type: appState.penType 
+                });
+                saveHistory();
+                render();
+            } else {
+                // Discard the stroke as a false line (not a closed loop)
+                console.log(`Discarded ${appState.penType} pen stroke: not a closed loop`);
+            }
         }
+        
+        // Clear preview
+        layerPreview.innerHTML = '';
+        
     } else if (appState.mode === 'point') {
         appState.activePointIndex = -1;
         saveHistory();
-        render(); // Ensure text updates if needed
+        render();
     }
 }
 

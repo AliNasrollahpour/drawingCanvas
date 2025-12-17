@@ -8,7 +8,7 @@ export const CONFIG = {
 };
 
 export const BOUNDARY_PROXIMITY = 4;
-export const CLOSING_DISTANCE = 1000; 
+export const CLOSING_DISTANCE = 25; 
 
 // --- NOTATION ---
 export const NOTATION = {
@@ -27,7 +27,6 @@ export const NOTATION = {
 };
 
 // --- DOM ELEMENTS ---
-// These are safe to query here because type="module" defers execution
 export const svg = document.getElementById('mainSvg');
 export const layerSets = document.getElementById('layerSets');
 export const layerPoints = document.getElementById('layerPoints');
