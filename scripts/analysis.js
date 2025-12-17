@@ -91,25 +91,61 @@ function analyzeSingleSet(setPaths, width, height) {
     off.width = width; off.height = height;
     const ctx = off.getContext('2d');
     const strokeMasks = [];
+    const strokeTypes = [];
 
     for(const pData of setPaths) { 
         ctx.clearRect(0,0,width,height);
-        ctx.fillStyle = 'black'; ctx.fillRect(0,0,width,height);
-        const p = new Path2D(pData.d);
+        ctx.fillStyle = 'black'; 
+        ctx.fillRect(0,0,width,height);
         
-        if (pData.d.trim().toUpperCase().endsWith('Z')) { 
-            ctx.fillStyle = 'white'; ctx.fill(p); 
+        // Handle composite paths (multiple strokes forming one closed shape)
+        if (pData.isComposite) {
+            // Use the composite closed path for rasterization
+            const p = new Path2D(pData.d);
+            ctx.fillStyle = 'white'; 
+            ctx.fill(p);
+            
+            const data = ctx.getImageData(0,0,width,height).data;
+            const mask = new Uint8Array(width*height);
+            for(let k=0; k<width*height; k++) mask[k] = data[k*4] > 128 ? 1 : 0;
+            strokeMasks.push(mask);
+            
+            // For composite paths, we need to analyze component strokes for type classification
+            if (pData.componentStrokes && pData.componentStrokes.length > 0) {
+                // Check if any component stroke is open
+                const hasOpenStroke = pData.componentStrokes.some(s => s.type === 'open');
+                const hasClosedStroke = pData.componentStrokes.some(s => s.type === 'closed');
+                
+                if (hasOpenStroke && hasClosedStroke) {
+                    strokeTypes.push('mixed');
+                } else if (hasOpenStroke) {
+                    strokeTypes.push('open');
+                } else {
+                    strokeTypes.push('closed');
+                }
+            } else {
+                strokeTypes.push('closed'); // Default for composite without component info
+            }
         } else {
-            ctx.strokeStyle = 'white'; ctx.lineWidth = 4; ctx.stroke(p); 
+            // Regular path
+            const p = new Path2D(pData.d);
+            
+            if (pData.d.trim().toUpperCase().endsWith('Z')) { 
+                ctx.fillStyle = 'white'; 
+                ctx.fill(p); 
+            } else {
+                ctx.strokeStyle = 'white'; 
+                ctx.lineWidth = 4; 
+                ctx.stroke(p); 
+            }
+            
+            const data = ctx.getImageData(0,0,width,height).data;
+            const mask = new Uint8Array(width*height);
+            for(let k=0; k<width*height; k++) mask[k] = data[k*4] > 128 ? 1 : 0;
+            strokeMasks.push(mask);
+            strokeTypes.push(pData.type || 'closed');
         }
-        
-        const data = ctx.getImageData(0,0,width,height).data;
-        const mask = new Uint8Array(width*height);
-        for(let k=0; k<width*height; k++) mask[k] = data[k*4] > 128 ? 1 : 0;
-        strokeMasks.push(mask);
     }
-    
-    const strokeTypes = setPaths.map(p => p.type);
     
     // Parts and Preliminary Union
     const adj = new Array(setPaths.length).fill(0).map(()=>[]);
@@ -201,7 +237,15 @@ function analyzeSingleSet(setPaths, width, height) {
             if (touches) typesSeen.add(strokeTypes[sIdx]); 
         }
         let partType = 'neither';
-        if (typesSeen.size === 1) partType = typesSeen.has('open') ? 'open' : 'closed';
+        if (typesSeen.size === 1) {
+            const type = Array.from(typesSeen)[0];
+            if (type === 'open') partType = 'open';
+            else if (type === 'closed') partType = 'closed';
+            else if (type === 'mixed') partType = 'neither';
+        } else if (typesSeen.size > 1) {
+            // Mixed stroke types in this part
+            partType = 'neither';
+        }
         partResults.push(partType);
     }
     const unique = Array.from(new Set(partResults));
@@ -247,7 +291,6 @@ function analyzeSingleSet(setPaths, width, height) {
         diameter: diameter 
     };
 }
-
 function analyzePointWithNeighborhood(pt, results, W, H) {
     const r = pt.r || 1; 
     const setInteractions = {}; 

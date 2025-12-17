@@ -1,7 +1,6 @@
 import { selectSet, inputName } from './config.js';
 
 // --- STATE ---
-// Export as let so it can be updated by undo/redo
 export let state = {
     sets: {
         'A': { id: 'A', name: 'A', paths: [] }, 
@@ -43,7 +42,17 @@ export let appState = {
     isDrawing: false,
     currentPath: [],
     dragStart: null,
-    activePointIndex: -1
+    activePointIndex: -1,
+    
+    // NEW: Candidate stroke tracking (stores separate strokes)
+    candidate: {
+        exists: false,
+        setId: null,
+        strokes: [],      // Array of strokes, each with {pathData, penType, points}
+        startPoint: null, // First point of first stroke
+        endPoint: null,   // Last point of last stroke
+        allPoints: []     // All points from all strokes combined
+    }
 };
 
 // --- STATE MUTATION & HISTORY UTILS ---
@@ -76,6 +85,9 @@ export function redo() {
 export function clearAllState() {
     state.points = [];
     Object.values(state.sets).forEach(s => s.paths = []);
+    // NEW: Clear candidate when clearing all
+    appState.candidate.exists = false;
+    appState.candidate.strokes = [];
 }
 
 export function updateUI() {

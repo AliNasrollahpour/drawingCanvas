@@ -122,6 +122,74 @@ pre {
     font-weight: bold; 
 }
 
+/* BOLD Candidate endpoint pulsing animation - ADJUSTED SIZES */
+.candidate-endpoint {
+    animation: endpoint-pulse 0.4s infinite alternate cubic-bezier(0.4, 0, 0.6, 1);
+    transform-origin: center;
+    stroke-width: 2;
+}
+
+@keyframes endpoint-pulse {
+    0% { 
+        r: 3; /* Smaller starting size */
+        fill-opacity: 0.9; 
+        stroke-opacity: 1;
+        stroke-width: 1;
+        filter: drop-shadow(0 0 2px currentColor);
+    }
+    100% { 
+        r: 6; /* Smaller max size */
+        fill-opacity: 0.7; 
+        stroke-opacity: 0.9;
+        stroke-width: 2; /* Reduced stroke width */
+        filter: drop-shadow(0 0 4px currentColor); /* Reduced glow */
+    }
+}
+
+/* Extra attention-grabbing outer ring - ADJUSTED SIZES */
+.candidate-endpoint-ring {
+    animation: ring-pulse 0.8s infinite cubic-bezier(0.4, 0, 0.6, 1);
+    transform-origin: center;
+    stroke-width: 1;
+    fill: none;
+}
+
+@keyframes ring-pulse {
+    0% { 
+        r: 5; /* Smaller starting size */
+        stroke-opacity: 0; 
+        stroke-width: 1;
+    }
+    50% { 
+        r: 8; /* Smaller middle size */
+        stroke-opacity: 0.8; 
+        stroke-width: 2; /* Reduced stroke width */
+    }
+    100% { 
+        r: 12; /* Smaller max size */
+        stroke-opacity: 0; 
+        stroke-width: 1;
+    }
+}
+
+/* Candidate stroke in main view */
+.candidate-main-stroke {
+    stroke-opacity: 0.8;
+    animation: stroke-pulse 2s infinite ease-in-out;
+}
+
+@keyframes stroke-pulse {
+    0% { stroke-opacity: 0.7; }
+    50% { stroke-opacity: 0.95; }
+    100% { stroke-opacity: 0.7; }
+}
+
+/* Candidate in preview (extending) */
+.candidate-preview-stroke {
+    stroke-opacity: 0.5;
+    stroke-width: 1.5;
+}
+
 /* Responsive Adjustments */
 @media (max-width: 768px) {
     .toolbar {
